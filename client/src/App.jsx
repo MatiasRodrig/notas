@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
+import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff
 } from 'lucide-react';
 
 // --- API Client ---
-const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') + '/api'; 
+// La variable VITE_API_URL se define en client/.env y se inyecta en el build
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '') + '/api'; 
 console.log('📡 API Base:', API_BASE);
 
 async function apiFetch(path, options = {}) {
@@ -245,17 +246,15 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
         <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4">
           <button
             onClick={() => setActiveCategoryId('all')}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-              activeCategoryId === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            }`}
+            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${activeCategoryId === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
           >Todas</button>
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setActiveCategoryId(cat.id)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                activeCategoryId === cat.id ? `${cat.color} ring-2 ring-offset-2 ring-indigo-500` : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${activeCategoryId === cat.id ? `${cat.color} ring-2 ring-offset-2 ring-indigo-500` : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
             >{cat.name}</button>
           ))}
           {isAddingCategory ? (
