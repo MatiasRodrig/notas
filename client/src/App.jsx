@@ -4,7 +4,8 @@ import {
 } from 'lucide-react';
 
 // --- API Client ---
-const API_BASE = '/api'; // Usar ruta relativa para que funcione tanto en local como en VPS
+const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') + '/api'; 
+console.log('📡 API Base:', API_BASE);
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
