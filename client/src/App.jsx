@@ -499,17 +499,43 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
 
 // --- Vista de Edición ---
 function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
+  const rootCategories = categories.filter(c => !c.parentId);
+
+  // Determinar valores iniciales
+  const getInitialState = () => {
+    const noteCat = categories.find(c => c.id === note?.categoryId);
+    if (noteCat) {
+      if (noteCat.parentId) {
+        return { parent: noteCat.parentId, sub: noteCat.id };
+      }
+      return { parent: noteCat.id, sub: 'none' };
+    }
+    return { parent: rootCategories[0]?.id || '', sub: 'none' };
+  };
+
+  const initialState = getInitialState();
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
-  const [categoryId, setCategoryId] = useState(note?.categoryId || (categories[0]?.id || ''));
+  const [parentCategoryId, setParentCategoryId] = useState(initialState.parent);
+  const [subCategoryId, setSubCategoryId] = useState(initialState.sub);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
+
+  // Subcategorías disponibles para el padre seleccionado
+  const availableSubcategories = categories.filter(c => c.parentId === parentCategoryId);
 
   const handleSave = async () => {
     if (!title.trim() && !content.trim()) return;
     setSaving(true);
-    await onSave({ title, content, categoryId });
+    // El ID final es la subcategoría si se eligió una; si no, la categoría raíz
+    const finalCategoryId = subCategoryId !== 'none' ? subCategoryId : parentCategoryId;
+    await onSave({ title, content, categoryId: finalCategoryId });
     setSaving(false);
+  };
+
+  const handleParentChange = (e) => {
+    setParentCategoryId(e.target.value);
+    setSubCategoryId('none'); // Resetear subcategoría al cambiar de padre
   };
 
   return (
@@ -548,16 +574,40 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
               onChange={(e) => setTitle(e.target.value)}
               className="text-3xl sm:text-4xl font-bold text-slate-800 placeholder-slate-300 outline-none w-full bg-transparent mb-4"
             />
-            <div className="mb-6 flex items-center">
-              <Tag size={18} className="text-slate-400 mr-2" />
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none cursor-pointer"
-              >
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-              </select>
+            
+            <div className="mb-6 flex flex-wrap gap-4 items-center">
+              {/* Selector de Categoría Principal */}
+              <div className="flex items-center">
+                <Tag size={18} className="text-slate-400 mr-2" title="Categoría Principal" />
+                <select
+                  value={parentCategoryId}
+                  onChange={handleParentChange}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none cursor-pointer"
+                >
+                  {rootCategories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Subcategoría (Solo si hay disponibles) */}
+              {availableSubcategories.length > 0 && (
+                <div className="flex items-center animate-in fade-in slide-in-from-left-2 duration-200">
+                  <div className="w-4 h-px bg-slate-200 mr-2 hidden sm:block"></div>
+                  <select
+                    value={subCategoryId}
+                    onChange={(e) => setSubCategoryId(e.target.value)}
+                    className="bg-indigo-50/50 border border-indigo-100 text-indigo-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none cursor-pointer"
+                  >
+                    <option value="none">Sin subcategoría</option>
+                    {availableSubcategories.map(sub => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+
             <textarea
               placeholder="Escribe aquí tu nota usando Markdown..."
               value={content}
