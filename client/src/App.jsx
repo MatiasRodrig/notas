@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 
 // --- API Client ---
-const API_BASE = 'http://localhost:4222/api'; // Cambiado para VPS (Backend en 4222)
+const API_BASE = '/api'; // Usar ruta relativa para que funcione tanto en local como en VPS
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
