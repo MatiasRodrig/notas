@@ -625,9 +625,14 @@ function MarkdownRenderer({ content, isReady }) {
   useEffect(() => {
     if (!isReady || !window.marked) return;
     const renderer = new window.marked.Renderer();
-    renderer.code = (code, language) => {
+    renderer.code = (argsOrCode, lang) => {
+      // Compatibilidad con diferentes versiones de Marked (objeto tokens vs argumentos planos)
+      const code = typeof argsOrCode === 'object' ? argsOrCode.text : argsOrCode;
+      const language = typeof argsOrCode === 'object' ? argsOrCode.lang : lang;
+      const safeCode = (code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       if (language === 'mermaid') return `<div class="mermaid">${code}</div>`;
-      return `<pre><code class="language-${language}">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+      return `<pre><code class="language-${language || ''}">${safeCode}</code></pre>`;
     };
     window.marked.setOptions({ renderer, breaks: true, gfm: true });
     setHtml(window.marked.parse(content));
