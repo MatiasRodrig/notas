@@ -5,7 +5,7 @@ import {
 
 // --- API Client ---
 // La variable VITE_API_URL se define en client/.env y se inyecta en el build
-const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '') + '/api'; 
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '') + '/api';
 console.log('📡 API Base:', API_BASE);
 
 async function apiFetch(path, options = {}) {
@@ -28,6 +28,7 @@ const api = {
   deleteNote: (id) => apiFetch(`/notes/${id}`, { method: 'DELETE' }),
   getCategories: () => apiFetch('/categories'),
   createCategory: (data) => apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id, data) => apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategory: (id) => apiFetch(`/categories/${id}`, { method: 'DELETE' }),
 };
 
@@ -140,14 +141,46 @@ export default function App() {
     }
   };
 
-  const handleAddCategory = async (name) => {
-    const color = CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
+  const handleAddCategory = async (name, parentId = null) => {
+    const color = parentId 
+      ? (categories.find(c => c.id === parentId)?.color || CATEGORY_COLORS[0])
+      : CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
+      
     try {
-      const newCat = await api.createCategory({ name, color });
+      const newCat = await api.createCategory({ name, color, parentId });
       setCategories(cs => [...cs, newCat]);
       return newCat.id;
     } catch (err) {
       showError(`Error al crear categoría: ${err.message}`);
+    }
+  };
+
+  const handleUpdateCategory = async (id, data) => {
+    try {
+      const updated = await api.updateCategory(id, data);
+      setCategories(cs => cs.map(c => c.id === id ? { ...c, ...updated } : c));
+    } catch (err) {
+      showError(`Error al editar categoría: ${err.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    const category = categories.find(c => c.id === id);
+    const hasSubcats = categories.some(c => c.parentId === id);
+    let msg = `¿Estás seguro de eliminar la categoría "${category?.name}"?`;
+    if (hasSubcats) msg += "\n\nIMPORTANTE: Esto también eliminará todas sus subcategorías.";
+    
+    if (!window.confirm(msg)) return;
+    
+    try {
+      await api.deleteCategory(id);
+      // Eliminar recursivamente en el estado (el backend ya lo hace en DB)
+      setCategories(cs => cs.filter(c => c.id !== id && c.parentId !== id));
+      if (activeCategoryId === id || categories.some(c => c.id === activeCategoryId && c.parentId === id)) {
+        setActiveCategoryId('all');
+      }
+    } catch (err) {
+      showError(`Error al eliminar categoría: ${err.message}`);
     }
   };
 
@@ -194,6 +227,8 @@ export default function App() {
           onCreateNote={handleCreateNote}
           onViewNote={handleViewNote}
           onAddCategory={handleAddCategory}
+          onUpdateCategory={handleUpdateCategory}
+          onDeleteCategory={handleDeleteCategory}
         />
       )}
       {view === 'editor' && (
@@ -220,22 +255,106 @@ export default function App() {
 }
 
 // --- Vista de Inicio ---
-function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, onCreateNote, onViewNote, onAddCategory }) {
+function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory }) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [addingToParentId, setAddingToParentId] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState('');
+  
   const [saving, setSaving] = useState(false);
 
   const handleSaveCategory = async () => {
     if (!newCategoryName.trim()) return;
     setSaving(true);
-    await onAddCategory(newCategoryName.trim());
+    await onAddCategory(newCategoryName.trim(), addingToParentId);
     setNewCategoryName('');
     setIsAddingCategory(false);
+    setAddingToParentId(null);
     setSaving(false);
   };
 
+  const startEditing = (cat) => {
+    setEditingId(cat.id);
+    setEditingName(cat.name);
+  };
+
+  // Agrupar categorías (Padres e hijos)
+  const rootCategories = categories.filter(c => !c.parentId);
+  
+  // Determinar el padre activo para mostrar sus subcategorías
+  const activeCategory = categories.find(c => c.id === activeCategoryId);
+  const activeRootId = activeCategoryId === 'all' ? null : (activeCategory?.parentId || activeCategoryId);
+  const activeRoot = categories.find(c => c.id === activeRootId);
+  
+  const subCategories = activeRootId ? categories.filter(c => c.parentId === activeRootId) : [];
+
+  const handleUpdate = async () => {
+    if (!editingName.trim()) return;
+    setSaving(true);
+    await onUpdateCategory(editingId, { name: editingName.trim() });
+    setEditingId(null);
+    setSaving(false);
+  };
+
+  const handleWheel = (e) => {
+    const container = e.currentTarget;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      container.scrollLeft += e.deltaY;
+    }
+  };
+
+  const renderCategoryButton = (cat, isSub = false) => {
+    const isActive = activeCategoryId === cat.id;
+    const isEditing = editingId === cat.id;
+
+    return (
+      <div key={cat.id} className="relative group flex items-center shrink-0">
+        {isEditing ? (
+          <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-full px-2 py-1 shadow-sm">
+            <input
+              autoFocus
+              className="text-sm outline-none w-24 bg-transparent"
+              value={editingName}
+              onChange={e => setEditingName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleUpdate()}
+              onBlur={() => !saving && setEditingId(null)}
+            />
+            <button onClick={handleUpdate} className="p-1 text-green-600 hover:text-green-700">
+              <Save size={14} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center">
+            <button
+              onClick={() => setActiveCategoryId(cat.id)}
+              className={`whitespace-nowrap px-3 py-2 rounded-full text-xs font-medium transition-colors border flex items-center gap-1.5 ${
+                isActive ? `${cat.color} ring-1 ring-offset-1 ring-indigo-400` : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              } ${isSub ? 'opacity-90' : ''}`}
+            >
+              {cat.name}
+              <div className="flex items-center gap-1 ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); startEditing(cat); }}
+                  className="p-1 hover:bg-black/5 rounded text-slate-400 hover:text-indigo-600"
+                  title="Editar"
+                ><Edit3 size={11} /></button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDeleteCategory(cat.id); }}
+                  className="p-1 hover:bg-black/5 rounded text-slate-400 hover:text-red-500"
+                  title="Eliminar"
+                ><Trash2 size={11} /></button>
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-5xl mx-auto pb-24">
+    <div className="w-full max-w-4xl mx-auto pb-24 min-h-screen bg-white shadow-xl">
       <header className="bg-white px-4 py-6 shadow-sm sticky top-0 z-10">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2 text-indigo-600">
@@ -243,43 +362,86 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
             <h1 className="text-2xl font-bold tracking-tight">Mis Notas</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+        {/* NIVEL 1: Categorías Raíz */}
+        <div 
+          onWheel={handleWheel}
+          className="flex items-center flex-nowrap gap-2 overflow-x-auto py-3 -mx-4 px-4 custom-scrollbar border-b border-slate-50"
+        >
           <button
             onClick={() => setActiveCategoryId('all')}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${activeCategoryId === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            className={`whitespace-nowrap px-3 py-2 rounded-full text-xs font-medium transition-colors border shrink-0 ${activeCategoryId === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
           >Todas</button>
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategoryId(cat.id)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${activeCategoryId === cat.id ? `${cat.color} ring-2 ring-offset-2 ring-indigo-500` : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-            >{cat.name}</button>
-          ))}
-          {isAddingCategory ? (
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-full pr-1 pl-3 py-1 ml-2 shadow-sm">
+          
+          {rootCategories.map(cat => renderCategoryButton(cat))}
+
+          {(isAddingCategory && !addingToParentId) ? (
+            <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-full pr-1 pl-3 py-1 ml-2 shadow-md shrink-0">
               <input
                 type="text"
                 autoFocus
-                placeholder="Nombre..."
+                placeholder="Raíz..."
                 className="text-sm outline-none w-24 bg-transparent text-slate-700"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveCategory()}
               />
-              <button onClick={handleSaveCategory} disabled={saving} className="p-1 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200">
+              <button onClick={handleSaveCategory} disabled={saving} className="p-1 bg-indigo-100 text-indigo-600 rounded-full">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               </button>
-              <button onClick={() => setIsAddingCategory(false)} className="p-1 text-slate-400 hover:text-slate-600"><X size={14} /></button>
+              <button onClick={() => setIsAddingCategory(false)} className="p-1 text-slate-400"><X size={14} /></button>
             </div>
           ) : (
             <button
-              onClick={() => setIsAddingCategory(true)}
-              className="flex items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 border border-dashed border-slate-300 hover:bg-slate-50 hover:text-indigo-600 transition-colors ml-2"
-            ><Plus size={16} /> Nueva</button>
+              onClick={() => { setIsAddingCategory(true); setAddingToParentId(null); }}
+              className="flex items-center gap-1 whitespace-nowrap px-2.5 py-2 rounded-full text-xs font-medium text-slate-400 border border-dashed border-slate-200 hover:bg-slate-50 shrink-0"
+            ><Plus size={14} /> Nueva</button>
           )}
         </div>
+
+        {/* NIVEL 2: Subcategorías (Solo si hay un padre seleccionado) */}
+        {activeRootId && (
+          <div 
+            onWheel={handleWheel}
+            className="flex items-center flex-nowrap gap-2 overflow-x-auto py-2 -mx-4 px-4 custom-scrollbar bg-slate-50/50 animate-in slide-in-from-top-1 duration-200"
+          >
+            <div className="text-[10px] uppercase font-bold text-slate-400 mr-2 border-r pr-2 flex items-center gap-1 shrink-0">
+              <Tag size={10} /> {activeRoot?.name}
+            </div>
+            
+            <button
+              onClick={() => setActiveCategoryId(activeRootId)}
+              className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-all border ${
+                activeCategoryId === activeRootId ? 'bg-white shadow-sm border-indigo-200 text-indigo-600' : 'text-slate-500 border-transparent hover:text-slate-800'
+              }`}
+            >Todo {activeRoot?.name}</button>
+
+            {subCategories.map(sub => renderCategoryButton(sub, true))}
+
+            {(isAddingCategory && addingToParentId) ? (
+              <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-full pr-1 pl-3 py-0.5 ml-2 shadow-sm shrink-0">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Sub..."
+                  className="text-xs outline-none w-20 bg-transparent text-slate-700"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveCategory()}
+                />
+                <button onClick={handleSaveCategory} disabled={saving} className="p-1 text-indigo-600">
+                  {saving ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                </button>
+                <button onClick={() => { setIsAddingCategory(false); setAddingToParentId(null); }} className="p-1 text-slate-400"><X size={12} /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setIsAddingCategory(true); setAddingToParentId(activeRootId); }}
+                className="flex items-center gap-1 whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium text-slate-400 border border-dashed border-slate-200 hover:text-indigo-600 shrink-0"
+              ><Plus size={14} /> Sub</button>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="p-4">
@@ -351,7 +513,7 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col max-w-4xl mx-auto shadow-xl">
+    <div className="w-full max-w-4xl mx-auto min-h-screen bg-white flex flex-col shadow-xl">
       <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
         <button onClick={onCancel} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors">
           <ChevronLeft size={24} />
@@ -421,7 +583,7 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
 function ViewerView({ note, category, onEdit, onBack, onDelete, scriptsLoaded }) {
   if (!note) return null;
   return (
-    <div className="min-h-screen bg-white max-w-4xl mx-auto shadow-xl">
+    <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl">
       <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
         <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors flex items-center">
           <ChevronLeft size={24} /><span className="font-medium hidden sm:inline ml-1">Volver</span>

@@ -36,7 +36,9 @@ async function initDB() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+      parent_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS notes (
@@ -63,6 +65,9 @@ async function initDB() {
     `, 'note-1', 'Guía de uso de la App', '¡Bienvenido a tu nueva app de notas!', 'cat-1');
   }
 
+  // Asegurar que la columna parent_id existe (migración simple)
+  try { await db.run('ALTER TABLE categories ADD COLUMN parent_id TEXT REFERENCES categories(id) ON DELETE CASCADE'); } catch (e) {}
+
   console.log(`✅ Base de datos SQLite lista en: ${DB_PATH}`);
 }
 
@@ -71,20 +76,36 @@ async function initDB() {
 app.get('/api/categories', async (req, res) => {
   try {
     const rows = await db.all('SELECT * FROM categories ORDER BY created_at ASC');
-    res.json(rows.map(r => ({ id: r.id, name: r.name, color: r.color })));
+    res.json(rows.map(r => ({ id: r.id, name: r.name, color: r.color, parentId: r.parent_id })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/categories', async (req, res) => {
-  const { name, color } = req.body;
+  const { name, color, parentId } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido.' });
 
   const id = `cat-${Date.now()}`;
   try {
-    await db.run('INSERT INTO categories (id, name, color) VALUES (?, ?, ?)', id, name.trim(), color || '');
-    res.status(201).json({ id, name: name.trim(), color: color || '' });
+    await db.run('INSERT INTO categories (id, name, color, parent_id) VALUES (?, ?, ?, ?)', id, name.trim(), color || '', parentId || null);
+    res.status(201).json({ id, name: name.trim(), color: color || '', parentId: parentId || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/categories/:id', async (req, res) => {
+  const { name, color, parentId } = req.body;
+  try {
+    const result = await db.run(`
+      UPDATE categories
+      SET name = ?, color = ?, parent_id = ?
+      WHERE id = ?
+    `, name?.trim() || '', color || '', parentId || null, req.params.id);
+
+    if (result.changes === 0) return res.status(404).json({ error: 'Categoría no encontrada.' });
+    res.json({ id: req.params.id, name: name.trim(), color, parentId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -106,7 +127,13 @@ app.get('/api/notes', async (req, res) => {
     const { categoryId } = req.query;
     let rows;
     if (categoryId && categoryId !== 'all') {
-      rows = await db.all('SELECT * FROM notes WHERE category_id = ? ORDER BY updated_at DESC', categoryId);
+      // Obtener notas de la categoría O de sus subcategorías
+      rows = await db.all(`
+        SELECT * FROM notes 
+        WHERE category_id = ? 
+        OR category_id IN (SELECT id FROM categories WHERE parent_id = ?)
+        ORDER BY updated_at DESC
+      `, categoryId, categoryId);
     } else {
       rows = await db.all('SELECT * FROM notes ORDER BY updated_at DESC');
     }

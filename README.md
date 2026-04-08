@@ -6,8 +6,11 @@ Una aplicación de notas moderna, rápida y minimalista construida con **React (
 
 - **Editor Markdown**: Escribe tus notas con formato enriquecido (negritas, listas, código, etc.).
 - **Diagramas Mermaid**: Genera diagramas y gráficos directamente en tus notas usando bloques de código `mermaid`.
-- **Categorización**: Organiza tus notas por categorías personalizadas con colores distintivos.
-- **Base de Datos SQLite**: Todo se guarda localmente en un único archivo, facilitando los backups y el despliegue.
+- **Categorización Jerárquica**: Organiza tus notas con un sistema de **Categorías y Subcategorías** (doble nivel).
+- **Gestión de Categorías**: Edita nombres o elimina categorías (con borrado en cascada) directamente desde la barra de navegación.
+- **Navegación PC Optimizada**: Desplazamiento horizontal fluido en la barra de categorías usando la rueda del ratón.
+- **Filtrado Inteligente**: Al seleccionar una categoría padre, se muestran automáticamente sus notas y las de todas sus subcategorías.
+- **Base de Datos SQLite**: Almacenamiento local persistente con soporte para relaciones jerárquicas.
 - **Diseño Premium**: Interfaz limpia, responsiva y con micro-animaciones usando **Tailwind CSS** y **Lucide React**.
 - **Listo para VPS**: Incluye scripts de instalación y configuraciones de Nginx para un deploy rápido.
 
