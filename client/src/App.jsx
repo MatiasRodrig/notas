@@ -214,6 +214,8 @@ export default function App() {
         .markdown-body blockquote { border-left: 4px solid #cbd5e1; padding-left: 1em; color: #64748b; font-style: italic; margin-bottom: 1em; }
         .markdown-body a { color: #2563eb; text-decoration: underline; }
         .mermaid { background: white; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin-bottom: 1em; display: flex; justify-content: center; overflow-x: auto; }
+        .html-note-wrapper { position: relative; width: 100%; border-radius: 0.75rem; overflow: hidden; border: 1px solid #e2e8f0; background: white; }
+        .html-note-iframe { width: 100%; min-height: 600px; border: 0; display: block; }
       `}</style>
 
       <ErrorBanner message={error} onDismiss={clearError} />
@@ -455,7 +457,18 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {notes.map(note => {
               const category = categories.find(c => c.id === note.categoryId);
-              const cleanContent = note.content.replace(/[#*`_>]/g, '').substring(0, 120);
+              // Limpieza robusta para la previsualización
+              const stripContent = (text) => {
+                if (!text) return '';
+                return text
+                  .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Eliminar scripts
+                  .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')   // Eliminar estilos
+                  .replace(/<[^>]*>?/gm, '') // Eliminar otras etiquetas HTML
+                  .replace(/[#*`_>\[\]\(\)]/g, '') // Eliminar Markdown común
+                  .replace(/\s+/g, ' ') // Normalizar espacios
+                  .trim();
+              };
+              const cleanContent = stripContent(note.content).substring(0, 120);
               return (
                 <div
                   key={note.id}
@@ -667,29 +680,33 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, scriptsLoaded })
   );
 }
 
-// --- Renderizador Markdown + Mermaid ---
+// --- Renderizador Markdown + Mermaid + HTML ---
 function MarkdownRenderer({ content, isReady }) {
   const containerRef = useRef(null);
   const [html, setHtml] = useState('');
 
+  const isFullHtml = content.trim().toLowerCase().startsWith('<!doctype') || 
+                     content.trim().toLowerCase().startsWith('<html');
+
   useEffect(() => {
-    if (!isReady || !window.marked) return;
+    if (!isReady || !window.marked || isFullHtml) return;
     const renderer = new window.marked.Renderer();
     renderer.code = (argsOrCode, lang) => {
-      // Compatibilidad con diferentes versiones de Marked (objeto tokens vs argumentos planos)
       const code = typeof argsOrCode === 'object' ? argsOrCode.text : argsOrCode;
       const language = typeof argsOrCode === 'object' ? argsOrCode.lang : lang;
-      const safeCode = (code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
       if (language === 'mermaid') return `<div class="mermaid">${code}</div>`;
+      if (language === 'html') return `<div class="rendered-html-block">${code}</div>`;
+      
+      const safeCode = (code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `<pre><code class="language-${language || ''}">${safeCode}</code></pre>`;
     };
     window.marked.setOptions({ renderer, breaks: true, gfm: true });
     setHtml(window.marked.parse(content));
-  }, [content, isReady]);
+  }, [content, isReady, isFullHtml]);
 
   useEffect(() => {
-    if (!isReady || !window.mermaid || !html) return;
+    if (!isReady || !window.mermaid || !html || isFullHtml) return;
     const id = setTimeout(() => {
       try {
         const nodes = containerRef.current?.querySelectorAll('.mermaid');
@@ -697,9 +714,22 @@ function MarkdownRenderer({ content, isReady }) {
       } catch (e) { console.warn('Mermaid error:', e); }
     }, 100);
     return () => clearTimeout(id);
-  }, [html, isReady]);
+  }, [html, isReady, isFullHtml]);
 
   if (!isReady) return <div className="text-slate-400 animate-pulse">Cargando renderizador...</div>;
+
+  if (isFullHtml) {
+    return (
+      <div className="html-note-wrapper">
+        <iframe
+          srcDoc={content}
+          title="HTML Full Note"
+          className="html-note-iframe"
+          sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+        />
+      </div>
+    );
+  }
 
   return (
     <div
