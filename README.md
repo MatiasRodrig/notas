@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.3)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.3.1)
 
 [Español](#español) | [English](#english)
 
@@ -9,27 +9,28 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.3
+### 🚀 Novedades v1.3.1
 
-- **Editor Tiptap**: Migración completa a un editor WYSIWYG potente con soporte para tareas jerárquicas y formato avanzado.
-- **Sistema de Objetivos**: Gestión de metas diarias, semanales, mensuales y anuales integrada.
-- **Calendario Integrado**: Visualización de eventos y notas mediante **FullCalendar**.
-- **Plantillas Cornell**: Soporte para el método de toma de notas Cornell con diseño optimizado.
-- **Auto-selección Inteligente**: Al crear una nota, se pre-seleccionan automáticamente la categoría y subcategoría activas.
-- **Tablas Mejoradas**: Diseño premium para tablas con cebras, bordes claros y padding optimizado.
-- **Gestión de Etiquetas**: Sistema global de etiquetas para organizar y filtrar contenido.
+- **Fix Markdown Renderer**: Restauración de la detección automática de Markdown, Mermaid y bloques de código que se había perdido en la migración a Tiptap.
+- **Estabilidad**: Mejoras generales en el renderizado de previsualizaciones.
 
 ### 🚀 Historial
 
+#### v1.3
+- **Editor Tiptap**: Migración completa a un editor WYSIWYG potente con soporte para tareas jerárquicas.
+- **Sistema de Objetivos**: Gestión de metas diarias, semanales, mensuales y anuales integrada.
+- **Calendario Integrado**: Visualización de eventos mediante FullCalendar.
+- **Plantillas Cornell**: Soporte para el método Cornell con diseño optimizado.
+- **Auto-selección Inteligente**: Pre-selección de categorías al crear notas.
+- **Tablas Mejoradas**: Diseño premium con cebras y bordes claros.
+
 #### v1.2
-- **Tarjetas de Código Estilo Notion**: Bloques de código con resaltado de sintaxis detallado (hljs), botón de copiar y diseño premium.
-- **Barra de Herramientas del Editor**: Nueva barra con utilidades para insertar Encabezados, Listas, Tablas, Citas, Gráficos Mermaid y más de forma rápida.
-- **Inserción Inteligente**: Herramientas que envuelven el texto seleccionado o insertan plantillas en la posición del cursor.
+- **Tarjetas de Código Estilo Notion**: Bloques de código con resaltado de sintaxis detallado (hljs).
+- **Barra de Herramientas**: Nueva barra para insertar formatos rápidamente.
 
 #### v1.1
-- **Ejecución de HTML Completo**: Las notas que comienzan con `<!DOCTYPE html>` se renderizan en un `<iframe>` aislado.
-- **Renderizado de bloques HTML**: Soporte para bloques ` ```html ` que se muestran como contenido vivo.
-- **Mejora de Previsualización**: Limpieza de texto robusta en la vista de inicio.
+- **Ejecución de HTML Completo**: Renderizado en iframes aislados.
+- **Bloques HTML vivos**: Renderizado de ` ```html `.
 
 ### ✨ Funcionalidades Principales
 
@@ -107,7 +108,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.3)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.3.1)
 
 [Español](#español) | [English](#english)
 
@@ -118,27 +119,31 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.3
-
-- **Tiptap Editor**: Full migration to a powerful WYSIWYG editor with support for hierarchical tasks and advanced formatting.
-- **Objectives System**: Integrated management for daily, weekly, monthly, and annual goals.
-- **Integrated Calendar**: Event and note visualization using **FullCalendar**.
-- **Cornell Templates**: Support for the Cornell note-taking method with an optimized layout.
-- **Smart Auto-selection**: When creating a note, active category and subcategory are automatically pre-selected.
-- **Enhanced Tables**: Premium design for tables with zebra striping, clear borders, and optimized padding.
 - **Tag Management**: Global tagging system to organize and filter content.
+- **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks.
+
+### 🚀 What's New in v1.3.1
+
+- **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks that was lost during the Tiptap migration.
+- **Stability**: General improvements in preview rendering.
 
 ### 🚀 History
 
+#### v1.3
+- **Tiptap Editor**: Full migration to a powerful WYSIWYG editor with hierarchical task support.
+- **Objectives System**: Integrated management for daily, weekly, monthly, and annual goals.
+- **Integrated Calendar**: Event visualization via FullCalendar.
+- **Cornell Templates**: Cornell method support with optimized design.
+- **Smart Auto-selection**: Category pre-selection when creating notes.
+- **Enhanced Tables**: Premium design with zebra striping and clear borders.
+
 #### v1.2
-- **Notion-Style Code Cards**: Code blocks with detailed syntax highlighting (hljs), copy button, and premium design.
-- **Editor Toolbar**: New toolbar with utilities to quickly insert Headings, Lists, Tables, Quotes, Mermaid Charts, and more.
-- **Smart Insertion**: Tools that wrap selected text or insert templates at the cursor position.
+- **Notion-Style Code Cards**: Code blocks with detailed syntax highlighting (hljs).
+- **Editor Toolbar**: New toolbar to quickly insert formats.
 
 #### v1.1
-- **Full HTML Execution**: Notes starting with `<!DOCTYPE html>` are rendered in an isolated `<iframe>`.
-- **HTML Block Rendering**: Support for ` ```html ` blocks that display as live content.
-- **Preview Improvements**: Robust text cleaning in the home view.
+- **Full HTML Execution**: Rendered in isolated iframes.
+- **Live HTML Blocks**: ` ```html ` rendering.
 
 ### ✨ Key Features
 
