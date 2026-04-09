@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff
+  Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
+  Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
+  Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon
 } from 'lucide-react';
 
 // --- API Client ---
@@ -44,24 +46,55 @@ const CATEGORY_COLORS = [
   'bg-orange-100 text-orange-800 border-orange-200',
 ];
 
-// --- Hook para cargar scripts externos (marked + mermaid) ---
+// --- Hook para cargar scripts externos (marked + mermaid + highlight.js) ---
 function useExternalScripts() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (document.getElementById('marked-script') && window.mermaid) { setReady(true); return; }
+    if (document.getElementById('marked-script') && window.mermaid && window.hljs) { setReady(true); return; }
+    
+    // Highlight.js CSS
+    const hlcss = document.createElement('link');
+    hlcss.rel = 'stylesheet';
+    hlcss.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+    document.head.appendChild(hlcss);
+
     const m = document.createElement('script');
     m.id = 'marked-script';
     m.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+    
     const mr = document.createElement('script');
     mr.id = 'mermaid-script';
     mr.src = 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js';
+
+    const hl = document.createElement('script');
+    hl.id = 'highlight-script';
+    hl.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
+
     document.body.appendChild(m);
     document.body.appendChild(mr);
+    document.body.appendChild(hl);
+
     Promise.all([
       new Promise(res => { m.onload = res; }),
       new Promise(res => { mr.onload = res; }),
+      new Promise(res => { hl.onload = res; }),
     ]).then(() => {
       window.mermaid?.initialize({ startOnLoad: false, theme: 'default' });
+      
+      // Función global para copiar código
+      window.copyCodeToClipboard = (btn, encodedCode) => {
+        const code = decodeURIComponent(encodedCode);
+        navigator.clipboard.writeText(code).then(() => {
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = '¡Copiado!';
+          btn.classList.add('text-green-400');
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('text-green-400');
+          }, 2000);
+        });
+      };
+
       setReady(true);
     });
   }, []);
@@ -209,13 +242,32 @@ export default function App() {
         .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .markdown-body li { margin-bottom: 0.25em; }
         .markdown-body code { background-color: #f1f5f9; padding: 0.2em 0.4em; border-radius: 0.25rem; font-family: ui-monospace, monospace; font-size: 0.875em; color: #db2777; }
-        .markdown-body pre { background-color: #1e293b; color: #f8fafc; padding: 1em; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1em; }
-        .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; }
+        
+        /* Code Cards Estilo Notion */
+        .code-card { background-color: #1e293b; border-radius: 0.75rem; margin-bottom: 1.5em; overflow: hidden; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .code-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background-color: #0f172a; border-bottom: 1px solid #334155; }
+        .code-lang { color: #94a3b8; font-family: ui-monospace, monospace; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .copy-btn { color: #94a3b8; font-size: 0.75rem; font-weight: 500; padding: 0.25rem 0.5rem; border-radius: 0.375rem; transition: all 0.2s; display: flex; align-items: center; gap: 0.25rem; }
+        .copy-btn:hover { background-color: #1e293b; color: #f8fafc; }
+        
+        .markdown-body pre { background-color: transparent; color: #f8fafc; padding: 1rem; margin: 0; border-radius: 0; overflow-x: auto; }
+        .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9rem; line-height: 1.5; }
+        
+        /* Ajustes de highlight.js para que combinen con la tarjeta */
+        .hljs { background: transparent !important; padding: 0 !important; }
         .markdown-body blockquote { border-left: 4px solid #cbd5e1; padding-left: 1em; color: #64748b; font-style: italic; margin-bottom: 1em; }
         .markdown-body a { color: #2563eb; text-decoration: underline; }
         .mermaid { background: white; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin-bottom: 1em; display: flex; justify-content: center; overflow-x: auto; }
         .html-note-wrapper { position: relative; width: 100%; border-radius: 0.75rem; overflow: hidden; border: 1px solid #e2e8f0; background: white; }
         .html-note-iframe { width: 100%; min-height: 600px; border: 0; display: block; }
+
+        /* Toolbar Styles */
+        .editor-toolbar { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); border: 1px solid #e2e8f0; border-radius: 0.75rem; margin-bottom: 1rem; position: sticky; top: 0; z-index: 10; }
+        .toolbar-group { display: flex; gap: 0.25rem; padding: 0 0.5rem; border-right: 1px solid #e2e8f0; }
+        .toolbar-group:last-child { border-right: none; }
+        .toolbar-btn { p: 0.5rem; color: #64748b; border-radius: 0.5rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .toolbar-btn:hover { background: #f1f5f9; color: #4f46e5; transform: translateY(-1px); }
+        .toolbar-btn active { background: #eef2ff; color: #4f46e5; }
       `}</style>
 
       <ErrorBanner message={error} onDismiss={clearError} />
@@ -534,8 +586,71 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
 
+  const textareaRef = useRef(null);
+
   // Subcategorías disponibles para el padre seleccionado
   const availableSubcategories = categories.filter(c => c.parentId === parentCategoryId);
+
+  const insertTemplate = (prefix, suffix = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    const selection = text.substring(start, end);
+
+    const newContent = before + prefix + selection + suffix + after;
+    setContent(newContent);
+
+    // Reenfocar y posicionar cursor
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + prefix.length + selection.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
+  const toolbarGroups = [
+    {
+      id: 'text',
+      tools: [
+        { icon: <Heading1 size={18} />, action: () => insertTemplate('# '), title: 'Título 1' },
+        { icon: <Heading2 size={18} />, action: () => insertTemplate('## '), title: 'Título 2' },
+        { icon: <Heading3 size={18} />, action: () => insertTemplate('### '), title: 'Título 3' },
+      ]
+    },
+    {
+      id: 'style',
+      tools: [
+        { icon: <Bold size={18} />, action: () => insertTemplate('**', '**'), title: 'Negrita' },
+        { icon: <Italic size={18} />, action: () => insertTemplate('_', '_'), title: 'Cursiva' },
+        { icon: <LinkIcon size={18} />, action: () => insertTemplate('[', '](url)'), title: 'Enlace' },
+      ]
+    },
+    {
+      id: 'lists',
+      tools: [
+        { icon: <List size={18} />, action: () => insertTemplate('- '), title: 'Lista' },
+        { icon: <ListOrdered size={18} />, action: () => insertTemplate('1. '), title: 'Lista Numerada' },
+        { icon: <CheckSquare size={18} />, action: () => insertTemplate('- [ ] '), title: 'Tarea' },
+      ]
+    },
+    {
+      id: 'blocks',
+      tools: [
+        { icon: <Quote size={18} />, action: () => insertTemplate('> '), title: 'Cita' },
+        { icon: <Code size={18} />, action: () => insertTemplate('```javascript\n', '\n```'), title: 'Código' },
+        { icon: <TableIcon size={18} />, action: () => insertTemplate('| Col 1 | Col 2 |\n|-------|-------|\n| Fil 1 | Fil 1 |'), title: 'Tabla' },
+        { icon: <Activity size={18} />, action: () => insertTemplate('```mermaid\ngraph TD\n  A --> B\n```'), title: 'Gráfico' },
+        { icon: <Minus size={18} />, action: () => insertTemplate('\n---\n'), title: 'Línea' },
+      ]
+    }
+  ];
+
+
 
   const handleSave = async () => {
     if (!title.trim() && !content.trim()) return;
@@ -621,11 +736,30 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
               )}
             </div>
 
+            <div className="editor-toolbar shadow-sm">
+              {toolbarGroups.map(group => (
+                <div key={group.id} className="toolbar-group">
+                  {group.tools.map((tool, idx) => (
+                    <button
+                      key={idx}
+                      onClick={tool.action}
+                      className="toolbar-btn hover:bg-slate-100 p-2 rounded-md transition-colors"
+                      title={tool.title}
+                      type="button"
+                    >
+                      {tool.icon}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+
             <textarea
+              ref={textareaRef}
               placeholder="Escribe aquí tu nota usando Markdown..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="flex-grow w-full resize-none outline-none text-slate-700 text-lg leading-relaxed bg-transparent placeholder-slate-300 min-h-[300px]"
+              className="flex-grow w-full resize-none outline-none text-slate-700 text-lg leading-relaxed bg-transparent placeholder-slate-300 min-h-[400px] mt-4"
             />
           </div>
         ) : (
@@ -698,8 +832,33 @@ function MarkdownRenderer({ content, isReady }) {
       if (language === 'mermaid') return `<div class="mermaid">${code}</div>`;
       if (language === 'html') return `<div class="rendered-html-block">${code}</div>`;
       
-      const safeCode = (code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<pre><code class="language-${language || ''}">${safeCode}</code></pre>`;
+      let highlightedCode = code;
+      if (window.hljs && language) {
+        try {
+          highlightedCode = window.hljs.highlight(code, { language }).value;
+        } catch (e) {
+          highlightedCode = window.hljs.highlightAuto(code).value;
+        }
+      } else if (window.hljs) {
+        highlightedCode = window.hljs.highlightAuto(code).value;
+      } else {
+        highlightedCode = (code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+
+      const encodedCode = encodeURIComponent(code);
+      
+      return `
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-lang">${language || 'code'}</span>
+            <button class="copy-btn" onclick="copyCodeToClipboard(this, \`${encodedCode}\`)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              Copiar
+            </button>
+          </div>
+          <pre><code class="hljs language-${language || ''}">${highlightedCode}</code></pre>
+        </div>
+      `;
     };
     window.marked.setOptions({ renderer, breaks: true, gfm: true });
     setHtml(window.marked.parse(content));

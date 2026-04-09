@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.1)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.2)
 
 [Español](#español) | [English](#english)
 
@@ -9,11 +9,17 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.1
+### 🚀 Novedades v1.2
 
-- **Ejecución de HTML Completo**: Las notas que comienzan con `<!DOCTYPE html>` se renderizan en un `<iframe>` aislado, permitiendo ejecutar scripts y estilos CSS propios.
-- **Renderizado de bloques HTML**: Soporte para bloques ` ```html ` que se muestran como contenido vivo dentro de notas Markdown.
-- **Mejora de Previsualización**: Algoritmo de limpieza de texto para evitar etiquetas HTML rotas en la vista de inicio.
+- **Tarjetas de Código Estilo Notion**: Bloques de código con resaltado de sintaxis detallado (hljs), botón de copiar y diseño premium.
+- **Barra de Herramientas del Editor**: Nueva barra con utilidades para insertar Encabezados, Listas, Tablas, Citas, Gráficos Mermaid y más de forma rápida.
+- **Inserción Inteligente**: Herramientas que envuelven el texto seleccionado o insertan plantillas en la posición del cursor.
+
+### 🚀 Historial v1.1
+
+- **Ejecución de HTML Completo**: Las notas que comienzan con `<!DOCTYPE html>` se renderizan en un `<iframe>` aislado.
+- **Renderizado de bloques HTML**: Soporte para bloques ` ```html ` que se muestran como contenido vivo.
+- **Mejora de Previsualización**: Limpieza de texto robusta en la vista de inicio.
 
 ### ✨ Funcionalidades Principales
 
@@ -96,11 +102,17 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.1
+### 🚀 What's New in v1.2
 
-- **Full HTML Execution**: Notes starting with `<!DOCTYPE html>` are rendered in an isolated `<iframe>`, allowing you to run custom scripts and CSS styles.
-- **HTML Block Rendering**: Support for ` ```html ` blocks that display as live content within Markdown notes.
-- **Preview Improvements**: Text cleaning algorithm to prevent broken HTML tags in the home view.
+- **Notion-Style Code Cards**: Code blocks with detailed syntax highlighting (hljs), copy button, and premium design.
+- **Editor Toolbar**: New toolbar with utilities to quickly insert Headings, Lists, Tables, Quotes, Mermaid Charts, and more.
+- **Smart Insertion**: Tools that wrap selected text or insert templates at the cursor position.
+
+### 🚀 History v1.1
+
+- **Full HTML Execution**: Notes starting with `<!DOCTYPE html>` are rendered in an isolated `<iframe>`.
+- **HTML Block Rendering**: Support for ` ```html ` blocks that display as live content.
+- **Preview Improvements**: Robust text cleaning in the home view.
 
 ### ✨ Key Features
 
