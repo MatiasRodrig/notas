@@ -2,8 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
   Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
-  Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon
+  Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon,
+  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle
 } from 'lucide-react';
+import TiptapEditor from './components/TiptapEditor';
+import CalendarView from './components/CalendarView';
+import FlashcardMode from './components/FlashcardMode';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import TurndownService from 'turndown';
 
 // --- API Client ---
 // La variable VITE_API_URL se define en client/.env y se inyecta en el build
@@ -32,6 +39,12 @@ const api = {
   createCategory: (data) => apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) }),
   updateCategory: (id, data) => apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategory: (id) => apiFetch(`/categories/${id}`, { method: 'DELETE' }),
+  getTags: () => apiFetch('/tags'),
+  createTag: (data) => apiFetch('/tags', { method: 'POST', body: JSON.stringify(data) }),
+  deleteTag: (id) => apiFetch(`/tags/${id}`, { method: 'DELETE' }),
+  addTagToNote: (noteId, tagId) => apiFetch(`/notes/${noteId}/tags`, { method: 'POST', body: JSON.stringify({ tagId }) }),
+  removeTagFromNote: (noteId, tagId) => apiFetch(`/notes/${noteId}/tags/${tagId}`, { method: 'DELETE' }),
+  updateNoteTags: (noteId, tagIds) => apiFetch(`/notes/${noteId}/tags`, { method: 'PUT', body: JSON.stringify({ tagIds }) }),
 };
 
 const CATEGORY_COLORS = [
@@ -117,7 +130,9 @@ function ErrorBanner({ message, onDismiss }) {
 export default function App() {
   const [notes, setNotes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]);
   const [activeCategoryId, setActiveCategoryId] = useState('all');
+  const [activeObjectiveFilter, setActiveObjectiveFilter] = useState('none');
   const [view, setView] = useState('home');
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -129,19 +144,33 @@ export default function App() {
 
   // Carga inicial
   useEffect(() => {
-    Promise.all([api.getCategories(), api.getNotes()])
-      .then(([cats, nts]) => { setCategories(cats); setNotes(nts); })
-      .catch(() => showError('No se pudo conectar con el servidor. ¿Está corriendo el backend?'))
+    setLoading(true);
+    Promise.all([api.getCategories(), api.getNotes(), api.getTags()])
+      .then(([cats, nts, tgs]) => { 
+        setCategories(cats); 
+        setNotes(nts); 
+        setTags(tgs);
+      })
+      .catch((err) => {
+        console.error(err);
+        showError('No se pudo conectar con el servidor. ¿Está corriendo el backend?');
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  // Recargar notas al cambiar categoría
+  // Recargar notas al cambiar categoría u objetivo
   useEffect(() => {
     if (loading) return;
     api.getNotes(activeCategoryId)
-      .then(setNotes)
+      .then(nts => {
+        if (activeObjectiveFilter !== 'none') {
+          setNotes(nts.filter(n => n.objectiveType === activeObjectiveFilter));
+        } else {
+          setNotes(nts);
+        }
+      })
       .catch(() => showError('Error al cargar las notas.'));
-  }, [activeCategoryId]);
+  }, [activeCategoryId, activeObjectiveFilter]);
 
   const handleCreateNote = () => { setActiveNoteId(null); setView('editor'); };
   const handleEditNote = (id) => { setActiveNoteId(id); setView('editor'); };
@@ -149,13 +178,20 @@ export default function App() {
 
   const handleSaveNote = async (noteData) => {
     try {
+      const { tagIds, ...data } = noteData;
+      let finalNote;
       if (activeNoteId) {
-        const updated = await api.updateNote(activeNoteId, noteData);
-        setNotes(ns => ns.map(n => n.id === activeNoteId ? updated : n));
+        finalNote = await api.updateNote(activeNoteId, data);
+        await api.updateNoteTags(activeNoteId, tagIds);
+        // Recargar nota completa para tener tags actualizados
+        finalNote = await api.getNote(activeNoteId);
+        setNotes(ns => ns.map(n => n.id === activeNoteId ? finalNote : n));
       } else {
-        const created = await api.createNote(noteData);
-        setNotes(ns => [created, ...ns]);
-        setActiveNoteId(created.id);
+        finalNote = await api.createNote(data);
+        await api.updateNoteTags(finalNote.id, tagIds);
+        finalNote = await api.getNote(finalNote.id);
+        setNotes(ns => [finalNote, ...ns]);
+        setActiveNoteId(finalNote.id);
       }
       setView('home');
     } catch (err) {
@@ -217,6 +253,34 @@ export default function App() {
     }
   };
 
+  const handleExportPDF = async (note) => {
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const element = document.getElementById('note-render-area');
+    if (!element) return;
+    
+    // Temporalmente quitamos sombras y bordes para captura limpia
+    const canvas = await html2canvas(element, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const imgProps = doc.getImageProperties(imgData);
+    const pdfWidth = doc.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    
+    doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    doc.save(`${note.title || 'nota'}.pdf`);
+  };
+
+  const handleExportMD = (note) => {
+    const turndownService = new TurndownService();
+    const markdown = `# ${note.title}\n\n${turndownService.turndown(note.content)}`;
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${note.title || 'nota'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -257,6 +321,36 @@ export default function App() {
         .hljs { background: transparent !important; padding: 0 !important; }
         .markdown-body blockquote { border-left: 4px solid #cbd5e1; padding-left: 1em; color: #64748b; font-style: italic; margin-bottom: 1em; }
         .markdown-body a { color: #2563eb; text-decoration: underline; }
+        .markdown-body table { 
+          width: 100%; 
+          border-collapse: separate; 
+          border-spacing: 0; 
+          border: 1px solid #e2e8f0; 
+          border-radius: 0.75rem; 
+          overflow: hidden; 
+          margin-bottom: 1.5rem; 
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        .markdown-body th, .markdown-body td { 
+          border: 1px solid #f1f5f9; 
+          padding: 0.875rem 1.25rem; 
+        }
+        .markdown-body th { 
+          background: #f8fafc; 
+          font-weight: 700; 
+          color: #1e293b; 
+          text-align: left; 
+          font-size: 0.875rem;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          border-bottom: 2px solid #e2e8f0;
+        }
+        .markdown-body tr:nth-child(even) {
+          background-color: #fcfcfd;
+        }
+        .markdown-body tr:hover td {
+          background-color: #f8fafc;
+        }
         .mermaid { background: white; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin-bottom: 1em; display: flex; justify-content: center; overflow-x: auto; }
         .html-note-wrapper { position: relative; width: 100%; border-radius: 0.75rem; overflow: hidden; border: 1px solid #e2e8f0; background: white; }
         .html-note-iframe { width: 100%; min-height: 600px; border: 0; display: block; }
@@ -277,7 +371,10 @@ export default function App() {
           notes={notes}
           categories={categories}
           activeCategoryId={activeCategoryId}
-          setActiveCategoryId={setActiveCategoryId}
+          setActiveCategoryId={(id) => { setActiveCategoryId(id); setActiveObjectiveFilter('none'); }}
+          activeObjectiveFilter={activeObjectiveFilter}
+          setActiveObjectiveFilter={(filter) => { setActiveObjectiveFilter(filter); setActiveCategoryId('all'); }}
+          setView={setView}
           onCreateNote={handleCreateNote}
           onViewNote={handleViewNote}
           onAddCategory={handleAddCategory}
@@ -289,9 +386,16 @@ export default function App() {
         <EditorView
           note={activeNote}
           categories={categories}
+          tags={tags}
+          defaultCategoryId={activeCategoryId}
           onSave={handleSaveNote}
           onCancel={() => setView(activeNoteId ? 'viewer' : 'home')}
           scriptsLoaded={scriptsLoaded}
+          onAddTag={async (name) => {
+            const newTag = await api.createTag({ name, color: 'bg-indigo-100 text-indigo-700' });
+            setTags(ts => [...ts, newTag]);
+            return newTag;
+          }}
         />
       )}
       {view === 'viewer' && (
@@ -301,7 +405,24 @@ export default function App() {
           onEdit={() => handleEditNote(activeNoteId)}
           onBack={() => setView('home')}
           onDelete={() => handleDeleteNote(activeNoteId)}
+          onFlashcard={() => setView('flashcards')}
+          onExportPDF={() => handleExportPDF(activeNote)}
+          onExportMD={() => handleExportMD(activeNote)}
           scriptsLoaded={scriptsLoaded}
+        />
+      )}
+      {view === 'calendar' && (
+        <CalendarView
+          notes={notes}
+          categories={categories}
+          onBack={() => setView('home')}
+          onViewNote={(id) => { setActiveNoteId(id); setView('viewer'); }}
+        />
+      )}
+      {view === 'flashcards' && (
+        <FlashcardMode
+          note={activeNote}
+          onBack={() => setView('viewer')}
         />
       )}
     </div>
@@ -309,14 +430,17 @@ export default function App() {
 }
 
 // --- Vista de Inicio ---
-function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory }) {
+function HomeView({ 
+  notes, categories, activeCategoryId, setActiveCategoryId, 
+  activeObjectiveFilter, setActiveObjectiveFilter, setView,
+  onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory 
+}) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [addingToParentId, setAddingToParentId] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
-  
+  const [showObjectiveMenu, setShowObjectiveMenu] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
-  
   const [saving, setSaving] = useState(false);
 
   const handleSaveCategory = async () => {
@@ -381,9 +505,9 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
           </div>
         ) : (
           <div className="flex items-center">
-            <button
+            <div
               onClick={() => setActiveCategoryId(cat.id)}
-              className={`whitespace-nowrap px-3 py-2 rounded-full text-xs font-medium transition-colors border flex items-center gap-1.5 ${
+              className={`cursor-pointer whitespace-nowrap px-3 py-2 rounded-full text-xs font-medium transition-colors border flex items-center gap-1.5 ${
                 isActive ? `${cat.color} ring-1 ring-offset-1 ring-indigo-400` : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
               } ${isSub ? 'opacity-90' : ''}`}
             >
@@ -400,7 +524,7 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
                   title="Eliminar"
                 ><Trash2 size={11} /></button>
               </div>
-            </button>
+            </div>
           </div>
         )}
       </div>
@@ -415,7 +539,44 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
             <BookOpen size={28} />
             <h1 className="text-2xl font-bold tracking-tight">Mis Notas</h1>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowObjectiveMenu(!showObjectiveMenu)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium border ${
+                  activeObjectiveFilter !== 'none' 
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Zap size={18} /> 
+                {activeObjectiveFilter === 'none' ? 'Objetivos' : 
+                 activeObjectiveFilter === 'daily' ? 'Diarios' :
+                 activeObjectiveFilter === 'weekly' ? 'Semanales' :
+                 activeObjectiveFilter === 'monthly' ? 'Mensuales' : 'Anuales'}
+              </button>
+              
+              {showObjectiveMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-2 animate-in fade-in zoom-in-95 duration-100">
+                  <button onClick={() => { setActiveObjectiveFilter('none'); setShowObjectiveMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-medium text-slate-700">Todos</button>
+                  <div className="border-t border-slate-100 my-1"></div>
+                  <button onClick={() => { setActiveObjectiveFilter('daily'); setShowObjectiveMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 text-slate-600"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Diarios</button>
+                  <button onClick={() => { setActiveObjectiveFilter('weekly'); setShowObjectiveMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 text-slate-600"><div className="w-2 h-2 rounded-full bg-green-500"></div> Semanales</button>
+                  <button onClick={() => { setActiveObjectiveFilter('monthly'); setShowObjectiveMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 text-slate-600"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Mensuales</button>
+                  <button onClick={() => { setActiveObjectiveFilter('yearly'); setShowObjectiveMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 text-slate-600"><div className="w-2 h-2 rounded-full bg-red-500"></div> Anuales</button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setView('calendar')}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-all font-medium border border-slate-200"
+            >
+              <CalendarIcon size={18} /> Calendario
+            </button>
+          </div>
         </div>
+
         {/* NIVEL 1: Categorías Raíz */}
         <div 
           onWheel={handleWheel}
@@ -563,11 +724,12 @@ function HomeView({ notes, categories, activeCategoryId, setActiveCategoryId, on
 }
 
 // --- Vista de Edición ---
-function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
+function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, onAddTag, defaultCategoryId }) {
   const rootCategories = categories.filter(c => !c.parentId);
 
   // Determinar valores iniciales
   const getInitialState = () => {
+    // Si estamos editando una nota existente
     const noteCat = categories.find(c => c.id === note?.categoryId);
     if (noteCat) {
       if (noteCat.parentId) {
@@ -575,6 +737,19 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
       }
       return { parent: noteCat.id, sub: 'none' };
     }
+
+    // Si es una nota nueva y hay una categoría activa seleccionada
+    if (!note && defaultCategoryId && defaultCategoryId !== 'all') {
+      const activeCat = categories.find(c => c.id === defaultCategoryId);
+      if (activeCat) {
+        if (activeCat.parentId) {
+          return { parent: activeCat.parentId, sub: activeCat.id };
+        }
+        return { parent: activeCat.id, sub: 'none' };
+      }
+    }
+
+    // Default: primera categoría raíz o vacía
     return { parent: rootCategories[0]?.id || '', sub: 'none' };
   };
 
@@ -583,8 +758,21 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
   const [content, setContent] = useState(note?.content || '');
   const [parentCategoryId, setParentCategoryId] = useState(initialState.parent);
   const [subCategoryId, setSubCategoryId] = useState(initialState.sub);
+  const [type, setType] = useState(note?.type || 'standard');
+  const [status, setStatus] = useState(note?.status || 'todo');
+  const [priority, setPriority] = useState(note?.priority || 'medium');
+  const [deadline, setDeadline] = useState(note?.deadline || '');
+  const [startDate, setStartDate] = useState(note?.startDate || '');
+  const [endDate, setEndDate] = useState(note?.endDate || '');
+  const [allDay, setAllDay] = useState(note?.allDay || false);
+  const [isRecurring, setIsRecurring] = useState(note?.isRecurring || false);
+  const [rrule, setRrule] = useState(note?.rrule || '');
+  const [objectiveType, setObjectiveType] = useState(note?.objectiveType || 'none');
+  const [selectedTagIds, setSelectedTagIds] = useState(note?.tags?.map(t => t.id) || []);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
 
   const textareaRef = useRef(null);
 
@@ -655,9 +843,26 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
   const handleSave = async () => {
     if (!title.trim() && !content.trim()) return;
     setSaving(true);
-    // El ID final es la subcategoría si se eligió una; si no, la categoría raíz
     const finalCategoryId = subCategoryId !== 'none' ? subCategoryId : parentCategoryId;
-    await onSave({ title, content, categoryId: finalCategoryId });
+    
+    const noteData = { 
+      title, 
+      content, 
+      categoryId: finalCategoryId,
+      type,
+      status,
+      priority,
+      deadline,
+      startDate,
+      endDate,
+      allDay,
+      isRecurring,
+      rrule,
+      objectiveType,
+      tagIds: selectedTagIds
+    };
+    
+    await onSave(noteData);
     setSaving(false);
   };
 
@@ -703,14 +908,28 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
               className="text-3xl sm:text-4xl font-bold text-slate-800 placeholder-slate-300 outline-none w-full bg-transparent mb-4"
             />
             
-            <div className="mb-6 flex flex-wrap gap-4 items-center">
+            <div className="mb-6 flex flex-wrap gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+              {/* Tipo de Nota */}
+              <div className="flex items-center">
+                <Zap size={18} className="text-slate-400 mr-2" />
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
+                >
+                  <option value="standard">Nota Estándar</option>
+                  <option value="task_list">Lista de Tareas</option>
+                  <option value="cornell">Método Cornell</option>
+                </select>
+              </div>
+
               {/* Selector de Categoría Principal */}
               <div className="flex items-center">
-                <Tag size={18} className="text-slate-400 mr-2" title="Categoría Principal" />
+                <Tag size={18} className="text-slate-400 mr-2" />
                 <select
                   value={parentCategoryId}
                   onChange={handleParentChange}
-                  className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none cursor-pointer"
+                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
                 >
                   {rootCategories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -718,14 +937,13 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
                 </select>
               </div>
 
-              {/* Selector de Subcategoría (Solo si hay disponibles) */}
+              {/* Selector de Subcategoría */}
               {availableSubcategories.length > 0 && (
-                <div className="flex items-center animate-in fade-in slide-in-from-left-2 duration-200">
-                  <div className="w-4 h-px bg-slate-200 mr-2 hidden sm:block"></div>
+                <div className="flex items-center">
                   <select
                     value={subCategoryId}
                     onChange={(e) => setSubCategoryId(e.target.value)}
-                    className="bg-indigo-50/50 border border-indigo-100 text-indigo-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none cursor-pointer"
+                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
                   >
                     <option value="none">Sin subcategoría</option>
                     {availableSubcategories.map(sub => (
@@ -734,85 +952,254 @@ function EditorView({ note, categories, onSave, onCancel, scriptsLoaded }) {
                   </select>
                 </div>
               )}
+
+              {/* Prioridad */}
+              <div className="flex items-center">
+                <span className="text-xs font-bold text-slate-400 mr-2 uppercase">Prioridad</span>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  className={`text-sm rounded-lg p-2 outline-none border ${
+                    priority === 'high' ? 'bg-red-50 border-red-100 text-red-700' :
+                    priority === 'medium' ? 'bg-yellow-50 border-yellow-100 text-yellow-700' :
+                    'bg-green-50 border-green-100 text-green-700'
+                  }`}
+                >
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                </select>
+              </div>
+
+              {/* Deadline (Legacy) */}
+              <div className="flex items-center">
+                <CalendarIcon size={18} className="text-slate-400 mr-2" />
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => {
+                    setDeadline(e.target.value);
+                    if (!startDate) setStartDate(e.target.value);
+                  }}
+                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
+                  title="Deadline"
+                />
+              </div>
             </div>
 
-            <div className="editor-toolbar shadow-sm">
-              {toolbarGroups.map(group => (
-                <div key={group.id} className="toolbar-group">
-                  {group.tools.map((tool, idx) => (
-                    <button
-                      key={idx}
-                      onClick={tool.action}
-                      className="toolbar-btn hover:bg-slate-100 p-2 rounded-md transition-colors"
-                      title={tool.title}
-                      type="button"
-                    >
-                      {tool.icon}
-                    </button>
-                  ))}
+            {/* Configuración de Evento y Objetivos */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-indigo-50/30 p-4 rounded-xl border border-indigo-100/50">
+                <h4 className="text-xs font-bold text-indigo-600 uppercase mb-3 flex items-center gap-2">
+                  <CalendarIcon size={14} /> Configuración de Evento
+                </h4>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Todo el día</span>
+                    <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="rounded text-indigo-600 focus:ring-indigo-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Inicio</label>
+                      <input 
+                        type={allDay ? "date" : "datetime-local"} 
+                        value={startDate} 
+                        onChange={e => setStartDate(e.target.value)} 
+                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Fin</label>
+                      <input 
+                        type={allDay ? "date" : "datetime-local"} 
+                        value={endDate} 
+                        onChange={e => setEndDate(e.target.value)} 
+                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">¿Es recurrente?</span>
+                    <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="rounded text-indigo-600 focus:ring-indigo-500" />
+                  </div>
+                  {isRecurring && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Regla de Recurrencia (RRule)</label>
+                      <select 
+                        value={rrule}
+                        onChange={e => setRrule(e.target.value)}
+                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 outline-none"
+                      >
+                        <option value="">Seleccionar...</option>
+                        <option value="FREQ=DAILY">Diariamente</option>
+                        <option value="FREQ=WEEKLY">Semanalmente</option>
+                        <option value="FREQ=MONTHLY">Mensualmente</option>
+                        <option value="FREQ=YEARLY">Anualmente</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              <div className="bg-amber-50/30 p-4 rounded-xl border border-amber-100/50">
+                <h4 className="text-xs font-bold text-amber-600 uppercase mb-3 flex items-center gap-2">
+                  <Zap size={14} /> Definir como Objetivo
+                </h4>
+                <div className="flex flex-col gap-4">
+                  <p className="text-xs text-slate-500 italic">Marca esta nota como un objetivo para completar en un periodo específico.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['none', 'daily', 'weekly', 'monthly', 'yearly'].map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setObjectiveType(t)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                          objectiveType === t 
+                            ? 'bg-amber-100 border-amber-300 text-amber-700 shadow-sm' 
+                            : 'bg-white border-slate-200 text-slate-500 hover:border-amber-200'
+                        }`}
+                      >
+                        {t === 'none' ? 'Ninguno' : t === 'daily' ? 'Diario' : t === 'weekly' ? 'Semanal' : t === 'monthly' ? 'Mensual' : 'Anual'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <textarea
-              ref={textareaRef}
-              placeholder="Escribe aquí tu nota usando Markdown..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="flex-grow w-full resize-none outline-none text-slate-700 text-lg leading-relaxed bg-transparent placeholder-slate-300 min-h-[400px] mt-4"
+            {/* Tags UI */}
+            <div className="mb-6 flex flex-wrap gap-2 items-center">
+              <div className="flex items-center gap-2">
+                <Tag size={16} className="text-slate-400" />
+                {tags.filter(t => selectedTagIds.includes(t.id)).map(tag => (
+                  <span key={tag.id} className={`${tag.color} text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1`}>
+                    {tag.name}
+                    <button onClick={() => setSelectedTagIds(ids => ids.filter(id => id !== tag.id))}><X size={10} /></button>
+                  </span>
+                ))}
+              </div>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowTagMenu(!showTagMenu)}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 border border-dashed border-slate-200 rounded-full hover:bg-slate-50"
+                ><Plus size={14} /></button>
+                
+                {showTagMenu && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl z-30 p-2">
+                    <div className="max-h-40 overflow-y-auto mb-2 custom-scrollbar">
+                      {tags.filter(t => !selectedTagIds.includes(t.id)).map(tag => (
+                        <button
+                          key={tag.id}
+                          onClick={() => {
+                            setSelectedTagIds([...selectedTagIds, tag.id]);
+                            setShowTagMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 rounded-lg flex items-center gap-2"
+                        >
+                          <div className={`w-2 h-2 rounded-full ${tag.color.split(' ')[0]}`}></div>
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-100 pt-2 flex gap-1">
+                      <input 
+                        className="text-xs p-1.5 border rounded-lg w-full outline-none"
+                        placeholder="Nuevo tag..."
+                        value={newTagName}
+                        onChange={e => setNewTagName(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && newTagName.trim()) {
+                            const newTag = await onAddTag(newTagName.trim());
+                            setSelectedTagIds([...selectedTagIds, newTag.id]);
+                            setNewTagName('');
+                            setShowTagMenu(false);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <TiptapEditor 
+              content={content} 
+              onChange={setContent} 
+              type={type}
             />
           </div>
         ) : (
           <div className="flex-grow bg-white rounded-xl p-2">
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-6">{title || 'Sin Título'}</h1>
             {content.trim()
-              ? <MarkdownRenderer content={content} isReady={scriptsLoaded} />
+              ? <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
               : <p className="text-slate-400 italic">No hay contenido para visualizar.</p>
             }
           </div>
         )}
+
       </main>
     </div>
   );
 }
 
 // --- Vista de Visualización ---
-function ViewerView({ note, category, onEdit, onBack, onDelete, scriptsLoaded }) {
+function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, scriptsLoaded }) {
   if (!note) return null;
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl">
+    <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl animate-in fade-in duration-300">
       <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
         <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors flex items-center">
           <ChevronLeft size={24} /><span className="font-medium hidden sm:inline ml-1">Volver</span>
         </button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {note.tags?.map(tag => (
+            <span key={tag.id} className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${tag.color}`}>
+              {tag.name}
+            </span>
+          ))}
+          <div className="h-6 w-px bg-slate-200 mx-1"></div>
+          <button onClick={onExportPDF} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar PDF"><Download size={20} /></button>
+          <button onClick={onExportMD} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar MD"><Share2 size={20} /></button>
+          {note.type === 'cornell' && (
+            <button onClick={onFlashcard} className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-lg font-bold hover:bg-yellow-100 transition-colors border border-yellow-200">
+              <Zap size={18} /> Estudiar
+            </button>
+          )}
           <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Eliminar">
             <Trash2 size={20} />
           </button>
-          <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">
+          <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-md transition-colors">
             <Edit3 size={18} /> Editar
           </button>
         </div>
       </header>
       <main className="p-6 sm:p-10 pb-24">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">{note.title}</h1>
-          <div className="flex items-center gap-4">
-            {category && (
-              <span className={`text-sm px-3 py-1 rounded-full font-medium ${category.color}`}>{category.name}</span>
-            )}
-            <span className="text-sm text-slate-400">
-              Modificado: {new Date(note.updatedAt).toLocaleDateString()} a las {new Date(note.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+        <div id="note-render-area" className="bg-white">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-slate-900 mb-4">{note.title}</h1>
+            <div className="flex items-center gap-4">
+              {category && (
+                <span className={`text-sm px-3 py-1 rounded-full font-medium ${category.color}`}>{category.name}</span>
+              )}
+              {note.deadline && (
+                <span className="text-sm font-bold text-indigo-600 flex items-center gap-1">
+                  <CalendarIcon size={14} /> {new Date(note.deadline).toLocaleDateString()}
+                </span>
+              )}
+              <span className="text-sm text-slate-400">
+                Creado: {new Date(note.createdAt).toLocaleDateString()}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="border-t border-slate-100 pt-8">
-          <MarkdownRenderer content={note.content} isReady={scriptsLoaded} />
+          <div className="border-t border-slate-100 pt-8">
+            <div className="prose prose-slate max-w-none text-lg" dangerouslySetInnerHTML={{ __html: note.content }} />
+          </div>
         </div>
       </main>
     </div>
   );
 }
+
 
 // --- Renderizador Markdown + Mermaid + HTML ---
 function MarkdownRenderer({ content, isReady }) {

@@ -10,6 +10,8 @@ client/dist/
 data/*.db
 data/*.db-journal
 data/*.db-wal
+*.db-shm
+*.db-wal
 
 # Variables de Entorno
 .env

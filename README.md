@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.2)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.3)
 
 [Español](#español) | [English](#english)
 
@@ -9,14 +9,24 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.2
+### 🚀 Novedades v1.3
 
+- **Editor Tiptap**: Migración completa a un editor WYSIWYG potente con soporte para tareas jerárquicas y formato avanzado.
+- **Sistema de Objetivos**: Gestión de metas diarias, semanales, mensuales y anuales integrada.
+- **Calendario Integrado**: Visualización de eventos y notas mediante **FullCalendar**.
+- **Plantillas Cornell**: Soporte para el método de toma de notas Cornell con diseño optimizado.
+- **Auto-selección Inteligente**: Al crear una nota, se pre-seleccionan automáticamente la categoría y subcategoría activas.
+- **Tablas Mejoradas**: Diseño premium para tablas con cebras, bordes claros y padding optimizado.
+- **Gestión de Etiquetas**: Sistema global de etiquetas para organizar y filtrar contenido.
+
+### 🚀 Historial
+
+#### v1.2
 - **Tarjetas de Código Estilo Notion**: Bloques de código con resaltado de sintaxis detallado (hljs), botón de copiar y diseño premium.
 - **Barra de Herramientas del Editor**: Nueva barra con utilidades para insertar Encabezados, Listas, Tablas, Citas, Gráficos Mermaid y más de forma rápida.
 - **Inserción Inteligente**: Herramientas que envuelven el texto seleccionado o insertan plantillas en la posición del cursor.
 
-### 🚀 Historial v1.1
-
+#### v1.1
 - **Ejecución de HTML Completo**: Las notas que comienzan con `<!DOCTYPE html>` se renderizan en un `<iframe>` aislado.
 - **Renderizado de bloques HTML**: Soporte para bloques ` ```html ` que se muestran como contenido vivo.
 - **Mejora de Previsualización**: Limpieza de texto robusta en la vista de inicio.
@@ -97,19 +107,35 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.3)
+
+[Español](#español) | [English](#english)
+
+---
+
 <a name="english"></a>
 ## 🇺🇸 English
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.2
+### 🚀 What's New in v1.3
 
+- **Tiptap Editor**: Full migration to a powerful WYSIWYG editor with support for hierarchical tasks and advanced formatting.
+- **Objectives System**: Integrated management for daily, weekly, monthly, and annual goals.
+- **Integrated Calendar**: Event and note visualization using **FullCalendar**.
+- **Cornell Templates**: Support for the Cornell note-taking method with an optimized layout.
+- **Smart Auto-selection**: When creating a note, active category and subcategory are automatically pre-selected.
+- **Enhanced Tables**: Premium design for tables with zebra striping, clear borders, and optimized padding.
+- **Tag Management**: Global tagging system to organize and filter content.
+
+### 🚀 History
+
+#### v1.2
 - **Notion-Style Code Cards**: Code blocks with detailed syntax highlighting (hljs), copy button, and premium design.
 - **Editor Toolbar**: New toolbar with utilities to quickly insert Headings, Lists, Tables, Quotes, Mermaid Charts, and more.
 - **Smart Insertion**: Tools that wrap selected text or insert templates at the cursor position.
 
-### 🚀 History v1.1
-
+#### v1.1
 - **Full HTML Execution**: Notes starting with `<!DOCTYPE html>` are rendered in an isolated `<iframe>`.
 - **HTML Block Rendering**: Support for ` ```html ` blocks that display as live content.
 - **Preview Improvements**: Robust text cleaning in the home view.
