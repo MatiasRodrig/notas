@@ -20,17 +20,19 @@ import React, { useEffect, useState, useRef } from 'react';
 const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      TaskList,
+      StarterKit.configure({
+        code: false, // Desactivamos el código inline automático para que no atrape las comillas
+      }),
+      TaskList.configure(),
       TaskItem.configure({
         nested: true,
       }),
       Table.configure({
         resizable: true,
       }),
-      TableRow,
-      TableHeader,
-      TableCell,
+      TableRow.configure(),
+      TableHeader.configure(),
+      TableCell.configure(),
       Placeholder.configure({
         placeholder: ({ node }) => {
           if (node.type.name === 'heading') {
@@ -103,7 +105,7 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
 
   const MenuBar = () => {
     return (
-      <div className="editor-toolbar sticky top-0 bg-white/80 backdrop-blur-sm z-10 border-b border-slate-200 p-2 flex flex-wrap gap-1 rounded-t-xl">
+      <div className="editor-toolbar sticky top-0 bg-white/95 backdrop-blur-md z-10 border-b border-slate-200 p-2 flex flex-wrap gap-1 rounded-t-xl shadow-sm">
         <div className="toolbar-group flex items-center gap-1 pr-2 border-r border-slate-200">
           <button 
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -160,9 +162,9 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
             title="Cita"
           ><Quote size={18} /></button>
           <button 
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            className={`p-2 rounded hover:bg-slate-100 ${editor.isActive('codeBlock') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600'}`}
-            title="Código"
+            onClick={() => editor.chain().focus().insertContent('\n```javascript\n\n```\n').run()}
+            className="p-2 rounded hover:bg-slate-100 text-slate-600"
+            title="Insertar Bloque de Código (Markdown)"
           ><Code size={18} /></button>
           
           <div className="relative" ref={gridRef}>
@@ -236,7 +238,7 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
   };
 
   return (
-    <div className="tiptap-editor-container border border-slate-200 rounded-xl overflow-hidden focus-within:border-indigo-300 transition-colors bg-white shadow-sm">
+    <div className="tiptap-editor-container border border-slate-200 rounded-xl focus-within:border-indigo-300 transition-colors bg-white shadow-sm">
       <MenuBar />
       <EditorContent editor={editor} />
       

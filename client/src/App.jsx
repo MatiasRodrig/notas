@@ -311,8 +311,12 @@ export default function App() {
         .code-card { background-color: #1e293b; border-radius: 0.75rem; margin-bottom: 1.5em; overflow: hidden; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .code-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background-color: #0f172a; border-bottom: 1px solid #334155; }
         .code-lang { color: #94a3b8; font-family: ui-monospace, monospace; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        .copy-btn { color: #94a3b8; font-size: 0.75rem; font-weight: 500; padding: 0.25rem 0.5rem; border-radius: 0.375rem; transition: all 0.2s; display: flex; align-items: center; gap: 0.25rem; }
+        .copy-btn { color: #94a3b8; font-size: 0.75rem; font-weight: 500; padding: 0.25rem 0.5rem; border-radius: 0.375rem; transition: all 0.2s; display: flex; align-items: center; gap: 0.25rem; background: transparent; border: none; cursor: pointer; }
         .copy-btn:hover { background-color: #1e293b; color: #f8fafc; }
+        
+        /* Dropdown de lenguaje en el editor */
+        .code-card select { appearance: none; background: transparent; border: none; color: #94a3b8; font-family: ui-monospace, monospace; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; outline: none; }
+        .code-card select option { background: #0f172a; color: #f8fafc; }
         
         .markdown-body pre { background-color: transparent; color: #f8fafc; padding: 1rem; margin: 0; border-radius: 0; overflow-x: auto; }
         .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9rem; line-height: 1.5; }
@@ -356,7 +360,7 @@ export default function App() {
         .html-note-iframe { width: 100%; min-height: 600px; border: 0; display: block; }
 
         /* Toolbar Styles */
-        .editor-toolbar { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); border: 1px solid #e2e8f0; border-radius: 0.75rem; margin-bottom: 1rem; position: sticky; top: 0; z-index: 10; }
+        .editor-toolbar { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #e2e8f0; border-radius: 0.75rem 0.75rem 0 0; margin-bottom: 0; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         .toolbar-group { display: flex; gap: 0.25rem; padding: 0 0.5rem; border-right: 1px solid #e2e8f0; }
         .toolbar-group:last-child { border-right: none; }
         .toolbar-btn { p: 0.5rem; color: #64748b; border-radius: 0.5rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
@@ -768,75 +772,17 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
   const [isRecurring, setIsRecurring] = useState(note?.isRecurring || false);
   const [rrule, setRrule] = useState(note?.rrule || '');
   const [objectiveType, setObjectiveType] = useState(note?.objectiveType || 'none');
+  const [renderMode, setRenderMode] = useState(note?.renderMode || 'markdown');
   const [selectedTagIds, setSelectedTagIds] = useState(note?.tags?.map(t => t.id) || []);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [newTagName, setNewTagName] = useState('');
 
-  const textareaRef = useRef(null);
 
   // Subcategorías disponibles para el padre seleccionado
   const availableSubcategories = categories.filter(c => c.parentId === parentCategoryId);
 
-  const insertTemplate = (prefix, suffix = '') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    const selection = text.substring(start, end);
-
-    const newContent = before + prefix + selection + suffix + after;
-    setContent(newContent);
-
-    // Reenfocar y posicionar cursor
-    setTimeout(() => {
-      textarea.focus();
-      const newCursorPos = start + prefix.length + selection.length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
-  };
-
-  const toolbarGroups = [
-    {
-      id: 'text',
-      tools: [
-        { icon: <Heading1 size={18} />, action: () => insertTemplate('# '), title: 'Título 1' },
-        { icon: <Heading2 size={18} />, action: () => insertTemplate('## '), title: 'Título 2' },
-        { icon: <Heading3 size={18} />, action: () => insertTemplate('### '), title: 'Título 3' },
-      ]
-    },
-    {
-      id: 'style',
-      tools: [
-        { icon: <Bold size={18} />, action: () => insertTemplate('**', '**'), title: 'Negrita' },
-        { icon: <Italic size={18} />, action: () => insertTemplate('_', '_'), title: 'Cursiva' },
-        { icon: <LinkIcon size={18} />, action: () => insertTemplate('[', '](url)'), title: 'Enlace' },
-      ]
-    },
-    {
-      id: 'lists',
-      tools: [
-        { icon: <List size={18} />, action: () => insertTemplate('- '), title: 'Lista' },
-        { icon: <ListOrdered size={18} />, action: () => insertTemplate('1. '), title: 'Lista Numerada' },
-        { icon: <CheckSquare size={18} />, action: () => insertTemplate('- [ ] '), title: 'Tarea' },
-      ]
-    },
-    {
-      id: 'blocks',
-      tools: [
-        { icon: <Quote size={18} />, action: () => insertTemplate('> '), title: 'Cita' },
-        { icon: <Code size={18} />, action: () => insertTemplate('```javascript\n', '\n```'), title: 'Código' },
-        { icon: <TableIcon size={18} />, action: () => insertTemplate('| Col 1 | Col 2 |\n|-------|-------|\n| Fil 1 | Fil 1 |'), title: 'Tabla' },
-        { icon: <Activity size={18} />, action: () => insertTemplate('```mermaid\ngraph TD\n  A --> B\n```'), title: 'Gráfico' },
-        { icon: <Minus size={18} />, action: () => insertTemplate('\n---\n'), title: 'Línea' },
-      ]
-    }
-  ];
 
 
 
@@ -859,6 +805,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
       isRecurring,
       rrule,
       objectiveType,
+      renderMode,
       tagIds: selectedTagIds
     };
     
@@ -872,7 +819,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-screen bg-white flex flex-col shadow-xl">
+    <div className="w-full max-w-4xl mx-auto h-screen bg-white flex flex-col shadow-xl">
       <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
         <button onClick={onCancel} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors">
           <ChevronLeft size={24} />
@@ -897,15 +844,15 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
         </button>
       </header>
 
-      <main className="flex-grow flex flex-col p-4 sm:p-6 overflow-y-auto">
+      <main className="flex-grow flex flex-col px-4 sm:px-6 pb-4 sm:pb-6 pt-0 overflow-y-auto">
         {activeTab === 'write' ? (
-          <div className="flex flex-col flex-grow h-full">
+          <div className="flex flex-col flex-grow">
             <input
               type="text"
               placeholder="Título de la nota..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="text-3xl sm:text-4xl font-bold text-slate-800 placeholder-slate-300 outline-none w-full bg-transparent mb-4"
+              className="text-3xl sm:text-4xl font-bold text-slate-800 placeholder-slate-300 outline-none w-full bg-transparent mb-4 pt-6"
             />
             
             <div className="mb-6 flex flex-wrap gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -1064,6 +1011,29 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
                   </div>
                 </div>
               </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 className="text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-2">
+                  <BookOpen size={14} /> Modo de Renderizado
+                </h4>
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-slate-500 italic">Elige cómo se interpretará el contenido de la nota.</p>
+                  <div className="flex bg-white p-1 rounded-lg border border-slate-200 self-start">
+                    <button
+                      onClick={() => setRenderMode('markdown')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                        renderMode === 'markdown' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >Markdown</button>
+                    <button
+                      onClick={() => setRenderMode('html')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                        renderMode === 'html' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >HTML Puro</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Tags UI */}
@@ -1131,7 +1101,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
           <div className="flex-grow bg-white rounded-xl p-2">
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-6">{title || 'Sin Título'}</h1>
             {content.trim()
-              ? <MarkdownRenderer content={content} isReady={scriptsLoaded} />
+              ? <MarkdownRenderer content={content} isReady={scriptsLoaded} renderMode={renderMode} />
               : <p className="text-slate-400 italic">No hay contenido para visualizar.</p>
             }
           </div>
@@ -1192,7 +1162,7 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
             </div>
           </div>
           <div className="border-t border-slate-100 pt-8">
-            <MarkdownRenderer content={note.content} isReady={scriptsLoaded} />
+            <MarkdownRenderer content={note.content} isReady={scriptsLoaded} renderMode={note.renderMode} />
           </div>
         </div>
       </main>
@@ -1202,7 +1172,7 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
 
 
 // --- Renderizador Markdown + Mermaid + HTML ---
-function MarkdownRenderer({ content, isReady }) {
+function MarkdownRenderer({ content, isReady, renderMode }) {
   const containerRef = useRef(null);
   const [html, setHtml] = useState('');
 
@@ -1210,7 +1180,29 @@ function MarkdownRenderer({ content, isReady }) {
                      content.trim().toLowerCase().startsWith('<html');
 
   useEffect(() => {
-    if (!isReady || !window.marked || isFullHtml) return;
+    if (!isReady || !window.marked) return;
+
+    // Si el modo es HTML, simplemente mostramos el contenido tal cual (o via iframe si es completo)
+    if (renderMode === 'html' || isFullHtml) {
+      setHtml(content);
+      return;
+    }
+
+    const turndownService = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced'
+    });
+    
+    // Evitar que turndown escape caracteres de markdown, para permitir la "detección automática"
+    turndownService.escape = (text) => text;
+    
+    // Si el contenido parece HTML (viene de Tiptap), lo convertimos a MD para
+    // que el renderizador de 'marked' pueda detectar los bloques de código y generar las 'Code Cards'.
+    let markdownSource = content;
+    if (content.includes('<') && content.includes('>')) {
+      markdownSource = turndownService.turndown(content);
+    }
+
     const renderer = new window.marked.Renderer();
     renderer.code = (argsOrCode, lang) => {
       const code = typeof argsOrCode === 'object' ? argsOrCode.text : argsOrCode;
@@ -1248,11 +1240,11 @@ function MarkdownRenderer({ content, isReady }) {
       `;
     };
     window.marked.setOptions({ renderer, breaks: true, gfm: true });
-    setHtml(window.marked.parse(content));
-  }, [content, isReady, isFullHtml]);
+    setHtml(window.marked.parse(markdownSource));
+  }, [content, isReady, isFullHtml, renderMode]);
 
   useEffect(() => {
-    if (!isReady || !window.mermaid || !html || isFullHtml) return;
+    if (!isReady || !window.mermaid || !html || isFullHtml || renderMode === 'html') return;
     const id = setTimeout(() => {
       try {
         const nodes = containerRef.current?.querySelectorAll('.mermaid');
@@ -1260,20 +1252,32 @@ function MarkdownRenderer({ content, isReady }) {
       } catch (e) { console.warn('Mermaid error:', e); }
     }, 100);
     return () => clearTimeout(id);
-  }, [html, isReady, isFullHtml]);
+  }, [html, isReady, isFullHtml, renderMode]);
 
   if (!isReady) return <div className="text-slate-400 animate-pulse">Cargando renderizador...</div>;
 
-  if (isFullHtml) {
+  if (isFullHtml || renderMode === 'html') {
+    const isActuallyFullHtml = isFullHtml || (content.trim().toLowerCase().startsWith('<!doctype') || content.trim().toLowerCase().startsWith('<html'));
+    
+    if (isActuallyFullHtml) {
+      return (
+        <div className="html-note-wrapper">
+          <iframe
+            srcDoc={content}
+            title="HTML Full Note"
+            className="html-note-iframe"
+            style={{ width: '100%', minHeight: '600px', border: '0' }}
+            sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+          />
+        </div>
+      );
+    }
+    
     return (
-      <div className="html-note-wrapper">
-        <iframe
-          srcDoc={content}
-          title="HTML Full Note"
-          className="html-note-iframe"
-          sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
-        />
-      </div>
+      <div 
+        className="rendered-raw-html" 
+        dangerouslySetInnerHTML={{ __html: content }} 
+      />
     );
   }
 

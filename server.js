@@ -84,6 +84,7 @@ async function initDB() {
   if (!columns.includes('rrule')) await db.run("ALTER TABLE notes ADD COLUMN rrule TEXT");
   if (!columns.includes('all_day')) await db.run("ALTER TABLE notes ADD COLUMN all_day INTEGER DEFAULT 0");
   if (!columns.includes('objective_type')) await db.run("ALTER TABLE notes ADD COLUMN objective_type TEXT DEFAULT 'none'");
+  if (!columns.includes('render_mode')) await db.run("ALTER TABLE notes ADD COLUMN render_mode TEXT DEFAULT 'markdown'");
 
   // Insertar datos iniciales si la DB está vacía
   const catCount = await db.get('SELECT COUNT(*) as count FROM categories');
@@ -228,14 +229,14 @@ app.post('/api/notes', async (req, res) => {
     await db.run(`
       INSERT INTO notes (
         id, title, content, category_id, type, status, priority, deadline, 
-        start_date, end_date, is_recurring, rrule, all_day, objective_type, updated_at
+        start_date, end_date, is_recurring, rrule, all_day, objective_type, render_mode, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `, [
       id, title || '', content || '', categoryId || null, type || 'standard', 
       status || 'todo', priority || 'medium', deadline || null,
       startDate || null, endDate || null, isRecurring ? 1 : 0, rrule || null, 
-      allDay ? 1 : 0, objectiveType || 'none'
+      allDay ? 1 : 0, objectiveType || 'none', req.body.renderMode || 'markdown'
     ]);
 
     const row = await db.get('SELECT * FROM notes WHERE id = ?', id);
@@ -255,13 +256,13 @@ app.put('/api/notes/:id', async (req, res) => {
       UPDATE notes
       SET title = ?, content = ?, category_id = ?, type = ?, status = ?, priority = ?, deadline = ?,
           start_date = ?, end_date = ?, is_recurring = ?, rrule = ?, all_day = ?, objective_type = ?,
-          updated_at = datetime('now')
+          render_mode = ?, updated_at = datetime('now')
       WHERE id = ?
     `, [
       title || '', content || '', categoryId || null, type || 'standard', 
       status || 'todo', priority || 'medium', deadline || null,
       startDate || null, endDate || null, isRecurring ? 1 : 0, rrule || null, 
-      allDay ? 1 : 0, objectiveType || 'none', req.params.id
+      allDay ? 1 : 0, objectiveType || 'none', req.body.renderMode || 'markdown', req.params.id
     ]);
 
     if (result.changes === 0) return res.status(404).json({ error: 'Nota no encontrada.' });
@@ -345,6 +346,7 @@ async function mapNote(row) {
     rrule: row.rrule,
     allDay: row.all_day === 1,
     objectiveType: row.objective_type || 'none',
+    renderMode: row.render_mode || 'markdown',
     updatedAt: row.updated_at,
     createdAt: row.created_at,
     tags: tags.map(t => ({ id: t.id, name: t.name, color: t.color }))

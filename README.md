@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.3.1)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.4)
 
 [Español](#español) | [English](#english)
 
@@ -9,12 +9,18 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.3.1
+### 🚀 Novedades v1.4
 
-- **Fix Markdown Renderer**: Restauración de la detección automática de Markdown, Mermaid y bloques de código que se había perdido en la migración a Tiptap.
-- **Estabilidad**: Mejoras generales en el renderizado de previsualizaciones.
+- **Barra de Herramientas Sticky**: El menú del editor Tiptap ahora permanece visible en la parte superior mientras haces scroll, facilitando la edición de notas largas.
+- **Selector de Tablas Dinámico**: Nueva interfaz visual para insertar tablas de hasta 10x10 de forma intuitiva.
+- **Acciones Contextuales**: Herramientas inteligentes que aparecen automáticamente al editar tablas para añadir/eliminar filas y columnas.
+- **Refinamiento UI/UX**: Mejoras en la legibilidad y estética con efectos de desenlace (backdrop-blur) y sombras dinámicas.
 
 ### 🚀 Historial
+
+#### v1.3.1
+- **Fix Markdown Renderer**: Restauración de la detección automática de Markdown, Mermaid y bloques de código.
+- **Estabilidad**: Mejoras generales en el renderizado de previsualizaciones.
 
 #### v1.3
 - **Editor Tiptap**: Migración completa a un editor WYSIWYG potente con soporte para tareas jerárquicas.
@@ -108,7 +114,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.3.1)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.4)
 
 [Español](#español) | [English](#english)
 
@@ -119,15 +125,18 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-- **Tag Management**: Global tagging system to organize and filter content.
-- **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks.
+### 🚀 What's New in v1.4
 
-### 🚀 What's New in v1.3.1
-
-- **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks that was lost during the Tiptap migration.
-- **Stability**: General improvements in preview rendering.
+- **Sticky Toolbar**: The Tiptap editor menu now stays visible at the top while scrolling, making it easier to edit long notes.
+- **Dynamic Table Selector**: New visual interface to intuitively insert tables up to 10x10.
+- **Contextual Actions**: Smart tools that automatically appear when editing tables to quickly add/remove rows and columns.
+- **UI/UX Refinement**: Improved readability and aesthetics with backdrop-blur effects and dynamic shadows.
 
 ### 🚀 History
+
+#### v1.3.1
+- **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks.
+- **Stability**: General improvements in preview rendering.
 
 #### v1.3
 - **Tiptap Editor**: Full migration to a powerful WYSIWYG editor with hierarchical task support.
