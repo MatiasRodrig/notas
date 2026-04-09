@@ -1131,7 +1131,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
           <div className="flex-grow bg-white rounded-xl p-2">
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-6">{title || 'Sin Título'}</h1>
             {content.trim()
-              ? <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+              ? <MarkdownRenderer content={content} isReady={scriptsLoaded} />
               : <p className="text-slate-400 italic">No hay contenido para visualizar.</p>
             }
           </div>
@@ -1192,7 +1192,7 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
             </div>
           </div>
           <div className="border-t border-slate-100 pt-8">
-            <div className="prose prose-slate max-w-none text-lg" dangerouslySetInnerHTML={{ __html: note.content }} />
+            <MarkdownRenderer content={note.content} isReady={scriptsLoaded} />
           </div>
         </div>
       </main>
