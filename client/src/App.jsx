@@ -271,6 +271,7 @@ export default function App() {
 
   const handleExportMD = (note) => {
     const turndownService = new TurndownService();
+    turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
     const markdown = `# ${note.title}\n\n${turndownService.turndown(note.content)}`;
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -1192,6 +1193,9 @@ function MarkdownRenderer({ content, isReady, renderMode }) {
       headingStyle: 'atx',
       codeBlockStyle: 'fenced'
     });
+    
+    // Preservar tablas HTML para que no se conviertan en texto plano
+    turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
     
     // Evitar que turndown escape caracteres de markdown, para permitir la "detección automática"
     turndownService.escape = (text) => text;
