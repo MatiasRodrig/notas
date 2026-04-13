@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.4)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.5)
 
 [Español](#español) | [English](#english)
 
@@ -9,14 +9,19 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.4
+### 🚀 Novedades v1.5
 
-- **Barra de Herramientas Sticky**: El menú del editor Tiptap ahora permanece visible en la parte superior mientras haces scroll, facilitando la edición de notas largas.
-- **Selector de Tablas Dinámico**: Nueva interfaz visual para insertar tablas de hasta 10x10 de forma intuitiva.
-- **Acciones Contextuales**: Herramientas inteligentes que aparecen automáticamente al editar tablas para añadir/eliminar filas y columnas.
-- **Refinamiento UI/UX**: Mejoras en la legibilidad y estética con efectos de desenlace (backdrop-blur) y sombras dinámicas.
+- **Buscador Global**: Nueva barra de búsqueda en el Home que permite filtrar notas por título, contenido, fecha, categorías y etiquetas en tiempo real.
+- **Listas de Tareas Interactivas**: Ahora puedes marcar/desmarcar tareas directamente desde el visor de notas, y el estado se persistirá automáticamente en la base de datos.
+- **Sincronización Inteligente**: Los cambios en los checkboxes de las tareas se sincronizan con el contenido original (HTML/Markdown) sin corromper el formato de la nota.
 
 ### 🚀 Historial
+
+#### v1.4
+- **Barra de Herramientas Sticky**: El menú del editor Tiptap ahora permanece visible en la parte superior mientras haces scroll.
+- **Selector de Tablas Dinámico**: Interfaz visual para insertar tablas de hasta 10x10.
+- **Acciones Contextuales**: Herramientas inteligentes para edición rápida de filas y columnas en tablas.
+- **Refinamiento UI/UX**: Mejoras en estética con efectos blur y sombras dinámicas.
 
 #### v1.3.1
 - **Fix Markdown Renderer**: Restauración de la detección automática de Markdown, Mermaid y bloques de código.
@@ -114,7 +119,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.4)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.5)
 
 [Español](#español) | [English](#english)
 
@@ -125,14 +130,19 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.4
+### 🚀 What's New in v1.5
 
-- **Sticky Toolbar**: The Tiptap editor menu now stays visible at the top while scrolling, making it easier to edit long notes.
-- **Dynamic Table Selector**: New visual interface to intuitively insert tables up to 10x10.
-- **Contextual Actions**: Smart tools that automatically appear when editing tables to quickly add/remove rows and columns.
-- **UI/UX Refinement**: Improved readability and aesthetics with backdrop-blur effects and dynamic shadows.
+- **Global Search**: New search bar in the Home view that allows filtering notes by title, content, date, categories, and tags in real-time.
+- **Interactive Task Lists**: You can now check/uncheck tasks directly from the note viewer, and the state will be automatically persisted in the database.
+- **Smart Synchronization**: Task checkbox changes are synced with the original content (HTML/Markdown) without corrupting the note's formatting.
 
 ### 🚀 History
+
+#### v1.4
+- **Sticky Toolbar**: The Tiptap editor menu now stays visible at the top while scrolling.
+- **Dynamic Table Selector**: Visual interface to insert tables up to 10x10.
+- **Contextual Actions**: Smart tools for quick row and column editing in tables.
+- **UI/UX Refinement**: Aesthetic improvements with blur effects and dynamic shadows.
 
 #### v1.3.1
 - **Markdown Renderer Fix**: Restored automatic detection of Markdown, Mermaid, and code blocks.

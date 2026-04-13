@@ -3,7 +3,7 @@ import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
   Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
   Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon,
-  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle
+  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search
 } from 'lucide-react';
 import TiptapEditor from './components/TiptapEditor';
 import CalendarView from './components/CalendarView';
@@ -45,6 +45,7 @@ const api = {
   addTagToNote: (noteId, tagId) => apiFetch(`/notes/${noteId}/tags`, { method: 'POST', body: JSON.stringify({ tagId }) }),
   removeTagFromNote: (noteId, tagId) => apiFetch(`/notes/${noteId}/tags/${tagId}`, { method: 'DELETE' }),
   updateNoteTags: (noteId, tagIds) => apiFetch(`/notes/${noteId}/tags`, { method: 'PUT', body: JSON.stringify({ tagIds }) }),
+  patchNote: (id, data) => apiFetch(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }).catch(() => api.updateNote(id, data)), // Fallback a PUT si PATCH no existe
 };
 
 const CATEGORY_COLORS = [
@@ -137,6 +138,7 @@ export default function App() {
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const scriptsLoaded = useExternalScripts();
 
   const showError = (msg) => setError(msg);
@@ -296,6 +298,34 @@ export default function App() {
   const activeNote = notes.find(n => n.id === activeNoteId);
   const activeCategory = categories.find(c => c.id === activeNote?.categoryId);
 
+  // Lógica de filtrado para el buscador
+  const filteredNotes = notes.filter(note => {
+    if (!searchTerm.trim()) return true;
+    
+    const searchLower = searchTerm.toLowerCase();
+    const category = categories.find(c => c.id === note.categoryId);
+    const parentCategory = category?.parentId ? categories.find(c => c.id === category.parentId) : null;
+    
+    // Limpiar contenido para buscar (eliminar tags HTML/MD)
+    const stripContent = (text) => {
+      if (!text) return '';
+      return text.replace(/<[^>]*>?/gm, '').replace(/[#*`_>\[\]\(\)]/g, '').toLowerCase();
+    };
+    
+    const matchesTitle = note.title.toLowerCase().includes(searchLower);
+    const matchesContent = stripContent(note.content).includes(searchLower);
+    const matchesCategory = category?.name.toLowerCase().includes(searchLower);
+    const matchesSubcategory = parentCategory?.name.toLowerCase().includes(searchLower);
+    const matchesTags = note.tags?.some(t => t.name.toLowerCase().includes(searchLower));
+    
+    // Formatos de fecha comunes para buscar
+    const noteDate = new Date(note.updatedAt);
+    const matchesDate = noteDate.toLocaleDateString().includes(searchTerm) || 
+                       noteDate.toISOString().includes(searchTerm);
+    
+    return matchesTitle || matchesContent || matchesCategory || matchesSubcategory || matchesTags || matchesDate;
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <style>{`
@@ -367,18 +397,48 @@ export default function App() {
         .toolbar-btn { p: 0.5rem; color: #64748b; border-radius: 0.5rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
         .toolbar-btn:hover { background: #f1f5f9; color: #4f46e5; transform: translateY(-1px); }
         .toolbar-btn active { background: #eef2ff; color: #4f46e5; }
+
+        /* Task List Styles en el Visor */
+        .markdown-body ul[data-type="taskList"] {
+          list-style: none;
+          padding-left: 0.5rem;
+        }
+        .markdown-body ul[data-type="taskList"] li {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+        .markdown-body ul[data-type="taskList"] li input[type="checkbox"] {
+          width: 1.2rem;
+          height: 1.2rem;
+          margin-top: 0.35rem;
+          cursor: pointer;
+          accent-color: #4f46e5;
+          flex-shrink: 0;
+        }
+        .markdown-body ul[data-type="taskList"] li > div {
+          flex: 1;
+          min-width: 0;
+        }
+        .markdown-body ul[data-type="taskList"] li[data-checked="true"] > div {
+          text-decoration: line-through;
+          color: #94a3b8;
+        }
       `}</style>
 
       <ErrorBanner message={error} onDismiss={clearError} />
 
       {view === 'home' && (
         <HomeView
-          notes={notes}
+          notes={filteredNotes}
           categories={categories}
           activeCategoryId={activeCategoryId}
           setActiveCategoryId={(id) => { setActiveCategoryId(id); setActiveObjectiveFilter('none'); }}
           activeObjectiveFilter={activeObjectiveFilter}
           setActiveObjectiveFilter={(filter) => { setActiveObjectiveFilter(filter); setActiveCategoryId('all'); }}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
           setView={setView}
           onCreateNote={handleCreateNote}
           onViewNote={handleViewNote}
@@ -413,6 +473,14 @@ export default function App() {
           onFlashcard={() => setView('flashcards')}
           onExportPDF={() => handleExportPDF(activeNote)}
           onExportMD={() => handleExportMD(activeNote)}
+          onUpdateContent={async (newContent) => {
+            try {
+              const updated = await api.updateNote(activeNoteId, { ...activeNote, content: newContent });
+              setNotes(ns => ns.map(n => n.id === activeNoteId ? { ...n, content: newContent } : n));
+            } catch (err) {
+              console.error('Error auto-saving task state:', err);
+            }
+          }}
           scriptsLoaded={scriptsLoaded}
         />
       )}
@@ -437,7 +505,7 @@ export default function App() {
 // --- Vista de Inicio ---
 function HomeView({ 
   notes, categories, activeCategoryId, setActiveCategoryId, 
-  activeObjectiveFilter, setActiveObjectiveFilter, setView,
+  activeObjectiveFilter, setActiveObjectiveFilter, searchTerm, setSearchTerm, setView,
   onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory 
 }) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -539,10 +607,33 @@ function HomeView({
   return (
     <div className="w-full max-w-4xl mx-auto pb-24 min-h-screen bg-white shadow-xl">
       <header className="bg-white px-4 py-6 shadow-sm sticky top-0 z-10">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2 text-indigo-600">
-            <BookOpen size={28} />
-            <h1 className="text-2xl font-bold tracking-tight">Mis Notas</h1>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div className="flex items-center gap-6 flex-grow w-full md:w-auto mr-4">
+            <div className="flex items-center gap-2 text-indigo-600 shrink-0">
+              <BookOpen size={28} />
+              <h1 className="text-2xl font-bold tracking-tight hidden lg:block">Mis Notas</h1>
+            </div>
+            
+            <div className="relative flex-grow max-w-md group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                <Search size={18} />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por título, contenido, fecha o tags..."
+                className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -1114,7 +1205,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
 }
 
 // --- Vista de Visualización ---
-function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, scriptsLoaded }) {
+function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, onUpdateContent, scriptsLoaded }) {
   if (!note) return null;
   return (
     <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl animate-in fade-in duration-300">
@@ -1163,7 +1254,7 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
             </div>
           </div>
           <div className="border-t border-slate-100 pt-8">
-            <MarkdownRenderer content={note.content} isReady={scriptsLoaded} renderMode={note.renderMode} />
+            <MarkdownRenderer content={note.content} isReady={scriptsLoaded} renderMode={note.renderMode} onUpdate={onUpdateContent} />
           </div>
         </div>
       </main>
@@ -1173,7 +1264,7 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
 
 
 // --- Renderizador Markdown + Mermaid + HTML ---
-function MarkdownRenderer({ content, isReady, renderMode }) {
+function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
   const containerRef = useRef(null);
   const [html, setHtml] = useState('');
 
@@ -1194,6 +1285,26 @@ function MarkdownRenderer({ content, isReady, renderMode }) {
       codeBlockStyle: 'fenced'
     });
     
+    // Regla para Tiptap Task Lists: Mantener el HTML para que sea interactivo
+    turndownService.addRule('taskList', {
+      filter: (node) => node.nodeName === 'UL' && node.getAttribute('data-type') === 'taskList',
+      replacement: (content, node) => {
+        return `<ul data-type="taskList">${content}</ul>`;
+      }
+    });
+
+    turndownService.addRule('taskItem', {
+      filter: (node) => node.nodeName === 'LI' && node.getAttribute('data-type') === 'taskItem',
+      replacement: (content, node) => {
+        const checked = node.getAttribute('data-checked') === 'true';
+        // Limpiar el contenido de labels internos y divs extra que tiptap a veces añade al convertir
+        let cleanContent = content.replace(/<label>.*?<\/label>/gi, '').trim();
+        // Si el contenido ya viene envuelto en un div (común en Tiptap), lo dejamos tal cual
+        const hasWrapper = cleanContent.startsWith('<div') || cleanContent.startsWith('<p');
+        return `<li data-type="taskItem" data-checked="${checked}"><input type="checkbox" ${checked ? 'checked' : ''} /> ${hasWrapper ? cleanContent : `<div>${cleanContent}</div>`}</li>`;
+      }
+    });
+
     // Preservar tablas HTML para que no se conviertan en texto plano
     turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
     
@@ -1208,6 +1319,11 @@ function MarkdownRenderer({ content, isReady, renderMode }) {
     }
 
     const renderer = new window.marked.Renderer();
+    
+    // Extender el renderizador para que no escape las etiquetas HTML que queremos mantener (taskList)
+    const originalText = renderer.text;
+    renderer.text = (text) => text; // No escapar HTML ya procesado por turndown rules
+
     renderer.code = (argsOrCode, lang) => {
       const code = typeof argsOrCode === 'object' ? argsOrCode.text : argsOrCode;
       const language = typeof argsOrCode === 'object' ? argsOrCode.lang : lang;
@@ -1258,6 +1374,31 @@ function MarkdownRenderer({ content, isReady, renderMode }) {
     return () => clearTimeout(id);
   }, [html, isReady, isFullHtml, renderMode]);
 
+  // Manejador de clics para tareas
+  const handleContainerClick = (e) => {
+    if (e.target.type === 'checkbox' && onUpdate) {
+      // Encontrar el índice de la casilla pulsada entre todas las casillas del renderizador
+      const allCheckboxes = Array.from(containerRef.current.querySelectorAll('input[type="checkbox"]'));
+      const index = allCheckboxes.indexOf(e.target);
+      
+      if (index !== -1) {
+        const isChecked = e.target.checked;
+        
+        // Parsear el contenido original (HTML de Tiptap) para no corromperlo con el HTML renderizado
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(content, 'text/html');
+        const tasks = doc.querySelectorAll('li[data-type="taskItem"]');
+        
+        if (tasks[index]) {
+          // Actualizar solo el atributo de la tarea correspondiente en el contenido original
+          tasks[index].setAttribute('data-checked', isChecked ? 'true' : 'false');
+          // Enviar el HTML actualizado manteniendo la estructura original de Tiptap
+          onUpdate(doc.body.innerHTML);
+        }
+      }
+    }
+  };
+
   if (!isReady) return <div className="text-slate-400 animate-pulse">Cargando renderizador...</div>;
 
   if (isFullHtml || renderMode === 'html') {
@@ -1290,6 +1431,7 @@ function MarkdownRenderer({ content, isReady, renderMode }) {
       ref={containerRef}
       className="markdown-body text-lg text-slate-800"
       dangerouslySetInnerHTML={{ __html: html }}
+      onClick={handleContainerClick}
     />
   );
 }
