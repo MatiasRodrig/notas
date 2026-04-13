@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.5)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.5.2)
 
 [Español](#español) | [English](#english)
 
@@ -8,6 +8,12 @@
 ## 🇪🇸 Español
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
+
+### 🚀 Novedades v1.5.2
+
+- **Editor HTML Dedicado**: Nuevo editor de código monoespaciado para el modo "HTML Puro", evitando que el editor visual escape etiquetas HTML.
+- **Renderizado HTML Mejorado**: Aislamiento robusto mediante iframes para documentos completos y renderizado directo para fragmentos parciales.
+- **Estética de Código**: Nueva interfaz oscura para el editor de HTML que mejora la legibilidad de etiquetas.
 
 ### 🚀 Novedades v1.5
 
@@ -119,7 +125,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.5)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.5.2)
 
 [Español](#español) | [English](#english)
 
@@ -129,6 +135,12 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 ## 🇺🇸 English
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
+
+### 🚀 What's New in v1.5.2
+
+- **Dedicated HTML Editor**: New monospaced code editor for "HTML Puro" mode, preventing the visual editor from escaping HTML tags.
+- **Enhanced HTML Rendering**: Robust iframe isolation for full documents and direct raw rendering for partial fragments.
+- **Code Aesthetics**: New dark-themed interface for the HTML editor to improve tag readability.
 
 ### 🚀 What's New in v1.5
 

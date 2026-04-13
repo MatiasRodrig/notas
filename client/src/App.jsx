@@ -390,6 +390,27 @@ export default function App() {
         .html-note-wrapper { position: relative; width: 100%; border-radius: 0.75rem; overflow: hidden; border: 1px solid #e2e8f0; background: white; }
         .html-note-iframe { width: 100%; min-height: 600px; border: 0; display: block; }
 
+        /* Code Editor Mode Styles */
+        .html-code-editor {
+          width: 100%;
+          min-height: 500px;
+          padding: 1.5rem;
+          font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 0.9rem;
+          line-height: 1.6;
+          background-color: #0f172a;
+          color: #e2e8f0;
+          border: 1px solid #1e293b;
+          border-radius: 0.75rem;
+          outline: none;
+          resize: vertical;
+          tab-size: 2;
+        }
+        .html-code-editor:focus {
+          border-color: #4f46e5;
+          ring: 2px solid rgba(79, 70, 229, 0.2);
+        }
+
         /* Toolbar Styles */
         .editor-toolbar { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #e2e8f0; border-radius: 0.75rem 0.75rem 0 0; margin-bottom: 0; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         .toolbar-group { display: flex; gap: 0.25rem; padding: 0 0.5rem; border-right: 1px solid #e2e8f0; }
@@ -1183,11 +1204,26 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
               </div>
             </div>
 
-            <TiptapEditor 
-              content={content} 
-              onChange={setContent} 
-              type={type}
-            />
+            {renderMode === 'html' ? (
+              <div className="flex-grow flex flex-col">
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="html-code-editor flex-grow mb-4"
+                  placeholder="Escribe o pega aquí tu código HTML puro..."
+                  spellCheck="false"
+                />
+                <div className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 self-start">
+                  MODO HTML ACTIVO: Las etiquetas serán interpretadas directamente.
+                </div>
+              </div>
+            ) : (
+              <TiptapEditor 
+                content={content} 
+                onChange={setContent} 
+                type={type}
+              />
+            )}
           </div>
         ) : (
           <div className="flex-grow bg-white rounded-xl p-2">
@@ -1405,22 +1441,21 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
   if (!isReady) return <div className="text-slate-400 animate-pulse">Cargando renderizador...</div>;
 
   if (isFullHtml || renderMode === 'html') {
-    const isActuallyFullHtml = isFullHtml || (content.trim().toLowerCase().startsWith('<!doctype') || content.trim().toLowerCase().startsWith('<html'));
-    
-    if (isActuallyFullHtml) {
+    // Si es HTML completo (doctype/html tag) siempre usamos iframe
+    if (isFullHtml) {
       return (
         <div className="html-note-wrapper">
           <iframe
             srcDoc={content}
             title="HTML Full Note"
             className="html-note-iframe"
-            style={{ width: '100%', minHeight: '600px', border: '0' }}
             sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
           />
         </div>
       );
     }
     
+    // Si es HTML parcial pero modo HTML activo, renderizamos directamente
     return (
       <div 
         className="rendered-raw-html" 
