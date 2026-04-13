@@ -74,11 +74,11 @@ function useExternalScripts() {
 
     const m = document.createElement('script');
     m.id = 'marked-script';
-    m.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+    m.src = 'https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js';
     
     const mr = document.createElement('script');
     mr.id = 'mermaid-script';
-    mr.src = 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js';
+    mr.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js';
 
     const hl = document.createElement('script');
     hl.id = 'highlight-script';
@@ -1321,8 +1321,11 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
     const renderer = new window.marked.Renderer();
     
     // Extender el renderizador para que no escape las etiquetas HTML que queremos mantener (taskList)
-    const originalText = renderer.text;
-    renderer.text = (text) => text; // No escapar HTML ya procesado por turndown rules
+    renderer.text = (args) => {
+      // API de marked v12+ pasa un objeto con la propiedad text
+      if (typeof args === 'object' && args.text !== undefined) return args.text;
+      return args;
+    };
 
     renderer.code = (argsOrCode, lang) => {
       const code = typeof argsOrCode === 'object' ? argsOrCode.text : argsOrCode;
