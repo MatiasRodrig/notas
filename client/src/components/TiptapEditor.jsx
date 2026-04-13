@@ -12,7 +12,7 @@ import {
   Heading1, Heading2, Heading3, Quote, Code, 
   Table as TableIcon, Maximize, Undo, Redo, 
   Columns, Save, ChevronDown, Trash2, 
-  Plus, Minus, Layout, 
+  Plus, Minus, Layout, Activity,
   ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
@@ -166,6 +166,11 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
             className="p-2 rounded hover:bg-slate-100 text-slate-600"
             title="Insertar Bloque de Código (Markdown)"
           ><Code size={18} /></button>
+          <button 
+            onClick={() => editor.chain().focus().insertContent('\n```mermaid\ngraph TD\n  A[Inicio] --> B{¿Es Mermaid?}\n  B -- Sí --> C[¡Funciona!]\n  B -- No --> D[Pruébalo]\n```\n').run()}
+            className="p-2 rounded hover:bg-slate-100 text-slate-600"
+            title="Insertar Diagrama Mermaid"
+          ><Activity size={18} /></button>
           
           <div className="relative" ref={gridRef}>
             <button 

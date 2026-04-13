@@ -1204,17 +1204,17 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
               </div>
             </div>
 
-            {renderMode === 'html' ? (
+            {renderMode === 'html' || renderMode === 'markdown' ? (
               <div className="flex-grow flex flex-col">
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="html-code-editor flex-grow mb-4"
-                  placeholder="Escribe o pega aquí tu código HTML puro..."
+                  placeholder={renderMode === 'html' ? "Escribe o pega aquí tu código HTML puro..." : "Escribe aquí tu Markdown con Mermaid..."}
                   spellCheck="false"
                 />
                 <div className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 self-start">
-                  MODO HTML ACTIVO: Las etiquetas serán interpretadas directamente.
+                  {renderMode === 'html' ? 'MODO HTML ACTIVO: Las etiquetas serán interpretadas directamente.' : 'MODO MARKDOWN ACTIVO: Los bloques de código y Mermaid serán procesados.'}
                 </div>
               </div>
             ) : (
@@ -1347,10 +1347,10 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
     // Evitar que turndown escape caracteres de markdown, para permitir la "detección automática"
     turndownService.escape = (text) => text;
     
-    // Si el contenido parece HTML (viene de Tiptap), lo convertimos a MD para
-    // que el renderizador de 'marked' pueda detectar los bloques de código y generar las 'Code Cards'.
+    // Si el contenido parece HTML (viene de Tiptap) y NO estamos en modo Markdown puro,
+    // lo convertimos a MD para que 'marked' detecte los bloques de código.
     let markdownSource = content;
-    if (content.includes('<') && content.includes('>')) {
+    if (renderMode !== 'markdown' && renderMode !== 'html' && content.includes('<') && content.includes('>')) {
       markdownSource = turndownService.turndown(content);
     }
 
@@ -1404,12 +1404,17 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
 
   useEffect(() => {
     if (!isReady || !window.mermaid || !html || isFullHtml || renderMode === 'html') return;
-    const id = setTimeout(() => {
+    const renderMermaid = async () => {
       try {
-        const nodes = containerRef.current?.querySelectorAll('.mermaid');
-        if (nodes?.length) window.mermaid.init(undefined, nodes);
-      } catch (e) { console.warn('Mermaid error:', e); }
-    }, 100);
+        // En Mermaid v10+ run() es la forma recomendada para contenido dinámico
+        await window.mermaid.run({
+          querySelector: '.mermaid',
+        });
+      } catch (e) {
+        console.warn('Mermaid rendering error:', e);
+      }
+    };
+    const id = setTimeout(renderMermaid, 100);
     return () => clearTimeout(id);
   }, [html, isReady, isFullHtml, renderMode]);
 
