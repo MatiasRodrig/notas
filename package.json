@@ -1,7 +1,7 @@
 {
-  "name": "notes-backend",
+  "name": "renote-backend",
   "version": "1.4.0",
-  "description": "API para Notas App (Express + SQLite)",
+  "description": "API para ReNote (Express + SQLite)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

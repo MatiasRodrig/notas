@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-# setup.sh — Deploy de Notes App en VPS (Ubuntu/Debian)
+# setup.sh — Deploy de ReNote en VPS (Ubuntu/Debian)
 # Uso: bash setup.sh
 # =============================================================
 
@@ -69,7 +69,7 @@ pm2 startup | tail -1 | bash 2>/dev/null || true
 
 echo ""
 echo "======================================================"
-ok "¡App deployada exitosamente!"
+ok "¡ReNote deployada exitosamente!"
 echo ""
 echo "  Puerto API:   4222  (configurable con PORT=xxxx)
   Puerto UI:    4223  (si se sirve por separado)

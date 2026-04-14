@@ -11,17 +11,17 @@ const app = express();
 const PORT = process.env.PORT || 4222;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'notes.db');
 
-// --- Middlewares ---
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // --- Configuración de Multer (Imágenes) ---
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// --- Middlewares ---
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'dist')));
+app.use('/uploads', express.static(uploadsDir));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -34,8 +34,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  storage: storage 
 });
 
 let db;
@@ -348,8 +347,25 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se subió ningún archivo.' });
   }
+  // Devolvemos la ruta relativa para que el frontend la maneje
   const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
+  console.log(`📸 Imagen subida: ${url}`);
+  res.json({ url, filename: req.file.filename });
+});
+
+app.get('/api/images', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadsDir);
+    const images = files
+      .filter(file => /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(file))
+      .map(file => ({
+        url: `/uploads/${file}`,
+        name: file
+      }));
+    res.json(images);
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo leer el directorio de imágenes.' });
+  }
 });
 
 app.get('*', (req, res) => {

@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.6)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.7)
 
 [Español](#español) | [English](#english)
 
@@ -8,6 +8,12 @@
 ## 🇪🇸 Español
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
+
+### 🚀 Novedades v1.7
+- **Editor Visual Avanzado**: Soporte mejorado para colores de texto, resaltados y subrayados que se persisten correctamente al guardar.
+- **Tablas en Toolbar**: Nueva interfaz en la barra de herramientas para insertar tablas HTML personalizadas directamente.
+- **Centro de Notificaciones**: Ícono de campana dinámico que alerta sobre objetivos próximos a vencer o vencidos.
+- **Mejoras de Estabilidad**: Solución a problemas de renderizado de imágenes residuales y optimización de carga de scripts externos.
 
 ### 🚀 Novedades v1.6
 - **Subida de Imágenes**: Nuevo soporte para insertar imágenes (PNG, JPG, SVG, etc.) directamente en tus notas.
@@ -132,7 +138,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.5.2)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.7)
 
 [Español](#español) | [English](#english)
 
@@ -142,6 +148,12 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 ## 🇺🇸 English
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
+
+### 🚀 What's New in v1.7
+- **Advanced Visual Editor**: Enhanced support for text colors, highlights, and underlines that persist correctly in Markdown.
+- **Toolbar Table Tools**: New interface in the toolbar to directly insert custom HTML tables.
+- **Notification System**: Dynamic bell icon alerting about upcoming or overdue goal deadlines.
+- **Stability Improvements**: Fixed residual image rendering issues and optimized external script loading.
 
 ### 🚀 What's New in v1.6
 - **Image Uploads**: Full support for inserting images (PNG, JPG, SVG, etc.) directly into your notes.

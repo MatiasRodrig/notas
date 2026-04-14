@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
   Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
-  Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon,
-  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search
+  Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon, Image as ImageIcon,
+  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search, Bell
 } from 'lucide-react';
 import TiptapEditor from './components/TiptapEditor';
 import CalendarView from './components/CalendarView';
@@ -11,11 +11,42 @@ import FlashcardMode from './components/FlashcardMode';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import TurndownService from 'turndown';
+import TableWizardModal from './components/TableWizardModal';
 
-// --- API Client ---
-// La variable VITE_API_URL se define en client/.env y se inyecta en el build
-const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '') + '/api';
+// La variable VITE_API_URL puede ser una URL absoluta o relativa.
+// Si no está definida, usamos la raíz del sitio + /api
+const getApiBase = () => {
+  const envApi = import.meta.env.VITE_API_URL;
+  if (envApi) return envApi;
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
+  return '/api';
+};
+
+export const API_BASE = getApiBase();
+export const SERVER_URL = API_BASE.replace('/api', '');
+
 console.log('📡 API Base:', API_BASE);
+console.log('🖼️ Server URL:', SERVER_URL);
+
+/**
+ * Helper to ensure image URLs are absolute.
+ * Converts "/uploads/..." to "http://host:port/uploads/..."
+ */
+export const getAssetUrl = (url) => {
+  if (!url) return '';
+  // Si ya es una URL absoluta o base64, no hacemos nada
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  
+  // Si empieza con /uploads, nos aseguramos de que sea absoluta usando SERVER_URL
+  if (url.startsWith('/uploads')) {
+    // Si SERVER_URL es relativa o termina en slash, lo manejamos
+    const base = SERVER_URL.endsWith('/') ? SERVER_URL.slice(0, -1) : SERVER_URL;
+    return `${base}${url}`;
+  }
+  return url;
+};
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -139,7 +170,28 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [notifications, setNotifications] = useState([]);
   const scriptsLoaded = useExternalScripts();
+
+  // Calcular notificaciones basadas en deadlines de objetivos
+  useEffect(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    const expiredOrToday = notes.filter(n => {
+      if (!n.deadline || n.objectiveType === 'none') return false;
+      const deadlineStr = n.deadline.split('T')[0];
+      return deadlineStr <= todayStr;
+    }).map(n => ({
+      id: n.id,
+      title: n.title,
+      deadline: n.deadline,
+      isExpired: n.deadline.split('T')[0] < todayStr,
+      isToday: n.deadline.split('T')[0] === todayStr,
+    }));
+    
+    setNotifications(expiredOrToday);
+  }, [notes]);
 
   const showError = (msg) => setError(msg);
   const clearError = () => setError(null);
@@ -175,6 +227,7 @@ export default function App() {
   }, [activeCategoryId, activeObjectiveFilter]);
 
   const handleCreateNote = () => { setActiveNoteId(null); setView('editor'); };
+  
   const handleEditNote = (id) => { setActiveNoteId(id); setView('editor'); };
   const handleViewNote = (id) => { setActiveNoteId(id); setView('viewer'); };
 
@@ -289,7 +342,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
           <Loader2 size={36} className="animate-spin text-indigo-500" />
-          <p className="font-medium">Conectando con la base de datos...</p>
+          <p className="font-medium">Conectando con la base de datos de ReNote...</p>
         </div>
       </div>
     );
@@ -329,17 +382,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <style>{`
-        .markdown-body h1 { font-size: 1.8em; font-weight: 700; margin-top: 1em; margin-bottom: 0.5em; color: #1e293b; }
-        .markdown-body h2 { font-size: 1.5em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; color: #334155; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; }
-        .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; color: #475569; }
-        .markdown-body p { margin-bottom: 1em; line-height: 1.6; color: #334155; }
-        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
-        .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
-        .markdown-body li { margin-bottom: 0.25em; }
-        .markdown-body code { background-color: #f1f5f9; padding: 0.2em 0.4em; border-radius: 0.25rem; font-family: ui-monospace, monospace; font-size: 0.875em; color: #db2777; }
+        .markdown-body { font-family: 'Inter', sans-serif; color: #37352f; line-height: 1.6; }
+        .markdown-body h1 { font-size: 2.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; color: #37352f; border-bottom: none; }
+        .markdown-body h2 { font-size: 1.875rem; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; color: #37352f; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; }
+        .markdown-body h3 { font-size: 1.5rem; font-weight: 600; margin-top: 1.25em; margin-bottom: 0.5em; color: #37352f; }
+        .markdown-body p { margin-bottom: 1.25em; line-height: 1.6; color: #37352f; }
+        .markdown-body code { background-color: #f1f1ef; padding: 0.2em 0.4em; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 0.9em; color: #eb5757; }
         
         /* Imágenes */
-        .markdown-body img { max-width: 100%; height: auto; border-radius: 0.75rem; border: 1px solid #e2e8f0; margin: 1.5rem auto; display: block; shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .markdown-body img { max-width: 100%; height: auto; border-radius: 0.75rem; border: 1px solid #e2e8f0; margin: 1.5rem auto; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        .rendered-html-block img { max-width: 100%; height: auto; border-radius: 0.5rem; }
         
         /* Code Cards Estilo Notion */
         .code-card { background-color: #1e293b; border-radius: 0.75rem; margin-bottom: 1.5em; overflow: hidden; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
@@ -399,11 +452,11 @@ export default function App() {
           min-height: 500px;
           padding: 1.5rem;
           font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 0.9rem;
-          line-height: 1.6;
-          background-color: #0f172a;
-          color: #e2e8f0;
-          border: 1px solid #1e293b;
+          font-size: 0.95rem;
+          line-height: 1.7;
+          background-color: #f8fafc;
+          color: #1e293b;
+          border: 1px solid #e2e8f0;
           border-radius: 0.75rem;
           outline: none;
           resize: vertical;
@@ -411,7 +464,12 @@ export default function App() {
         }
         .html-code-editor:focus {
           border-color: #4f46e5;
-          ring: 2px solid rgba(79, 70, 229, 0.2);
+          background-color: #ffffff;
+          box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+        }
+        .html-code-editor::placeholder {
+          color: #94a3b8;
+          opacity: 0.7;
         }
 
         /* Toolbar Styles */
@@ -449,6 +507,44 @@ export default function App() {
           text-decoration: line-through;
           color: #94a3b8;
         }
+
+        /* Notion Callouts */
+        .notion-callout {
+          display: flex;
+          gap: 1rem;
+          padding: 1rem 1.25rem;
+          border-radius: 0.75rem;
+          margin-bottom: 1.5rem;
+          border: 1px solid transparent;
+          font-size: 1rem;
+          line-height: 1.6;
+        }
+        .notion-callout.note { background-color: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+        .notion-callout.tip { background-color: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+        .notion-callout.important { background-color: #fffbeb; border-color: #fef3c7; color: #78350f; }
+        .notion-callout.warning { background-color: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+        .notion-callout > div { flex: 1; }
+        .notion-callout svg { flex-shrink: 0; margin-top: 0.15rem; }
+
+        /* Premium Divider */
+        .notion-divider {
+          border: 0;
+          height: 1px;
+          background: #e2e8f0;
+          margin: 2rem 0;
+          position: relative;
+        }
+        .notion-divider::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 8px;
+          height: 8px;
+          background: #e2e8f0;
+          border-radius: 50%;
+        }
       `}</style>
 
       <ErrorBanner message={error} onDismiss={clearError} />
@@ -469,10 +565,12 @@ export default function App() {
           onAddCategory={handleAddCategory}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}
+          notifications={notifications}
         />
       )}
       {view === 'editor' && (
         <EditorView
+          key={activeNoteId || 'new'}
           note={activeNote}
           categories={categories}
           tags={tags}
@@ -489,6 +587,7 @@ export default function App() {
       )}
       {view === 'viewer' && (
         <ViewerView
+          key={activeNoteId}
           note={activeNote}
           category={activeCategory}
           onEdit={() => handleEditNote(activeNoteId)}
@@ -530,7 +629,8 @@ export default function App() {
 function HomeView({ 
   notes, categories, activeCategoryId, setActiveCategoryId, 
   activeObjectiveFilter, setActiveObjectiveFilter, searchTerm, setSearchTerm, setView,
-  onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory 
+  onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory,
+  notifications
 }) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [addingToParentId, setAddingToParentId] = useState(null);
@@ -539,6 +639,17 @@ function HomeView({
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef(null);
+
+  // Cerrar dropdowns al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) setShowNotifications(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSaveCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -633,9 +744,9 @@ function HomeView({
       <header className="bg-white px-4 py-6 shadow-sm sticky top-0 z-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div className="flex items-center gap-6 flex-grow w-full md:w-auto mr-4">
-            <div className="flex items-center gap-2 text-indigo-600 shrink-0">
-              <BookOpen size={28} />
-              <h1 className="text-2xl font-bold tracking-tight hidden lg:block">Mis Notas</h1>
+            <div className="flex items-center gap-2 text-slate-900 shrink-0">
+              <BookOpen size={24} className="text-indigo-600" />
+              <h1 className="text-xl font-bold tracking-tight hidden lg:block">ReNote</h1>
             </div>
             
             <div className="relative flex-grow max-w-md group">
@@ -694,6 +805,61 @@ function HomeView({
             >
               <CalendarIcon size={18} /> Calendario
             </button>
+
+
+
+            {/* Campana de Notificaciones */}
+            <div className="relative" ref={notificationRef}>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative flex items-center gap-2 px-3 py-2 rounded-xl transition-all font-medium border ${
+                  showNotifications ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Bell size={18} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                  <div className="p-3 border-b border-slate-100 bg-slate-50">
+                    <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Notificaciones</h3>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400">
+                        <Bell size={24} className="mx-auto mb-2 opacity-20" />
+                        <p className="text-sm">No hay plazos vencidos</p>
+                      </div>
+                    ) : (
+                      notifications.map(note => (
+                        <div 
+                          key={note.id} 
+                          onClick={() => { onViewNote(note.id); setShowNotifications(false); }}
+                          className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 group"
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{note.title || 'Sin título'}</h4>
+                            {note.isExpired ? (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded-md font-bold uppercase">Vencido</span>
+                            ) : (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold uppercase">Hoy</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                            <CalendarIcon size={10} /> {new Date(note.deadline).toLocaleDateString()}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -806,22 +972,26 @@ function HomeView({
                 <div
                   key={note.id}
                   onClick={() => onViewNote(note.id)}
-                  className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col h-48 cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all group"
+                  className="bg-white rounded-xl p-5 border border-slate-200 flex flex-col h-56 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all group relative"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-bold text-lg text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                    <h3 className="font-semibold text-lg text-slate-800 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors">
                       {note.title || 'Sin Título'}
                     </h3>
                   </div>
-                  <p className="text-slate-500 text-sm flex-grow line-clamp-4 leading-relaxed">
+                  <p className="text-slate-500 text-sm flex-grow line-clamp-3 leading-relaxed">
                     {cleanContent || 'No hay contenido adicional.'}
-                    {note.content.length > 120 && '...'}
                   </p>
-                  <div className="mt-4 flex justify-between items-center">
-                    {category && (
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${category.color}`}>{category.name}</span>
-                    )}
-                    <span className="text-xs text-slate-400 font-medium">
+                  <div className="mt-4 flex flex-wrap gap-2 items-center justify-between border-t border-slate-50 pt-3">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      {category && (
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${category.color} truncate max-w-[80px]`}>{category.name}</span>
+                      )}
+                      {note.tags?.slice(0, 1).map(t => (
+                        <span key={t.id} className="text-[10px] text-slate-400 font-medium">#{t.name}</span>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
                       {new Date(note.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -888,12 +1058,14 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
   const [isRecurring, setIsRecurring] = useState(note?.isRecurring || false);
   const [rrule, setRrule] = useState(note?.rrule || '');
   const [objectiveType, setObjectiveType] = useState(note?.objectiveType || 'none');
-  const [renderMode, setRenderMode] = useState(note?.renderMode || 'markdown');
+  const [renderMode, setRenderMode] = useState(note?.renderMode || 'visual');
   const [selectedTagIds, setSelectedTagIds] = useState(note?.tags?.map(t => t.id) || []);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [showTableWizard, setShowTableWizard] = useState(false);
 
 
   // Subcategorías disponibles para el padre seleccionado
@@ -1142,6 +1314,12 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
                       }`}
                     >Markdown</button>
                     <button
+                      onClick={() => setRenderMode('visual')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                        renderMode === 'visual' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >Visual</button>
+                    <button
                       onClick={() => setRenderMode('html')}
                       className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
                         renderMode === 'html' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
@@ -1207,18 +1385,145 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
               </div>
             </div>
 
-            {renderMode === 'html' || renderMode === 'markdown' ? (
+            {renderMode === 'markdown' ? (
+              <div className="flex-grow flex flex-col min-h-0">
+                {activeTab === 'write' ? (
+                  <>
+                    <MarkdownToolbar 
+                      onInsert={(text) => {
+                        const textarea = document.querySelector('.html-code-editor');
+                        if (textarea) {
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const val = textarea.value;
+                          const newVal = val.substring(0, start) + text + val.substring(end);
+                          setContent(newVal);
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + text.length, start + text.length);
+                          }, 10);
+                        }
+                      }} 
+                      onUpload={async (file) => {
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        try {
+                          const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+                          const data = await res.json();
+                          if (data.url) {
+                            const insertion = `![](${data.url})`;
+                            const textarea = document.querySelector('.html-code-editor');
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const newVal = content.substring(0, start) + insertion + content.substring(start);
+                              setContent(newVal);
+                            }
+                          }
+                        } catch (err) { console.error('Upload error:', err); }
+                      }}
+                      onOpenGallery={() => setShowGallery(true)}
+                      onOpenTableWizard={() => setShowTableWizard(true)}
+                    />
+
+                    {showTableWizard && (
+                      <TableWizardModal 
+                        onClose={() => setShowTableWizard(false)}
+                        onInsert={(html) => {
+                          const turndownService = new TurndownService();
+                          turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
+                          const markdown = turndownService.turndown(html);
+                          
+                          const textarea = document.querySelector('.html-code-editor');
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newVal = content.substring(0, start) + '\n' + markdown + '\n' + content.substring(start);
+                            setContent(newVal);
+                          }
+                          setShowTableWizard(false);
+                        }}
+                      />
+                    )}
+
+                    {showGallery && (
+                      <GalleryModal 
+                        onClose={() => setShowGallery(false)} 
+                        onSelect={(url) => {
+                          const insertion = `![](${url})`;
+                          const textarea = document.querySelector('.html-code-editor');
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newVal = content.substring(0, start) + insertion + content.substring(start);
+                            setContent(newVal);
+                          }
+                          setShowGallery(false);
+                        }}
+                      />
+                    )}
+                    <div className="flex-grow flex flex-col mt-4 bg-[#fcfcfc] rounded-xl border border-slate-200 overflow-hidden shadow-inner">
+                      <textarea
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        onDrop={async (e) => {
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files[0];
+                            if (file.type.startsWith('image/')) {
+                              const formData = new FormData();
+                              formData.append('image', file);
+                              try {
+                                const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+                                const data = await res.json();
+                                if (data.url) {
+                                  const insertion = `![](${data.url})`;
+                                  const cursor = e.target.selectionStart;
+                                  const newContent = content.slice(0, cursor) + insertion + content.slice(cursor);
+                                  setContent(newContent);
+                                }
+                              } catch (err) { console.error('Upload error:', err); }
+                            }
+                          }
+                        }}
+                        onPaste={async (e) => {
+                          if (e.clipboardData.files && e.clipboardData.files[0]) {
+                            const file = e.clipboardData.files[0];
+                            if (file.type.startsWith('image/')) {
+                              e.preventDefault();
+                              const formData = new FormData();
+                              formData.append('image', file);
+                              try {
+                                const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+                                const data = await res.json();
+                                if (data.url) {
+                                  const insertion = `![](${data.url})`;
+                                  const cursor = e.target.selectionStart;
+                                  const newContent = content.slice(0, cursor) + insertion + content.slice(cursor);
+                                  setContent(newContent);
+                                }
+                              } catch (err) { console.error('Upload error:', err); }
+                            }
+                          }
+                        }}
+                        className="html-code-editor w-full h-full p-6 bg-transparent border-none outline-none resize-none"
+                        placeholder="Escribe aquí tu Markdown con Mermaid..."
+                        spellCheck="false"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 overflow-y-auto p-8 shadow-sm">
+                    <MarkdownRenderer content={content} isReady={scriptsLoaded} renderMode="markdown" />
+                  </div>
+                )}
+              </div>
+            ) : renderMode === 'html' ? (
               <div className="flex-grow flex flex-col">
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="html-code-editor flex-grow mb-4"
-                  placeholder={renderMode === 'html' ? "Escribe o pega aquí tu código HTML puro..." : "Escribe aquí tu Markdown con Mermaid..."}
+                  placeholder="Escribe o pega aquí tu código HTML puro..."
                   spellCheck="false"
                 />
-                <div className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 self-start">
-                  {renderMode === 'html' ? 'MODO HTML ACTIVO: Las etiquetas serán interpretadas directamente.' : 'MODO MARKDOWN ACTIVO: Los bloques de código y Mermaid serán procesados.'}
-                </div>
               </div>
             ) : (
               <TiptapEditor 
@@ -1344,8 +1649,8 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
       }
     });
 
-    // Preservar tablas HTML para que no se conviertan en texto plano
-    turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
+    // Preservar tablas HTML y estilos inline para que no se pierdan al renderizar
+    turndownService.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'mark', 'u']);
     
     // Evitar que turndown escape caracteres de markdown, para permitir la "detección automática"
     turndownService.escape = (text) => text;
@@ -1364,6 +1669,15 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
       // API de marked v12+ pasa un objeto con la propiedad text
       if (typeof args === 'object' && args.text !== undefined) return args.text;
       return args;
+    };
+
+    renderer.image = (argsOrHref, title, text) => {
+      const href = typeof argsOrHref === 'object' ? argsOrHref.href : argsOrHref;
+      const t = typeof argsOrHref === 'object' ? argsOrHref.title : title;
+      const alt = typeof argsOrHref === 'object' ? argsOrHref.text : text;
+      
+      const absoluteUrl = getAssetUrl(href);
+      return `<img src="${absoluteUrl}" alt="${alt || ''}" title="${t || ''}" loading="lazy" />`;
     };
 
     renderer.code = (argsOrCode, lang) => {
@@ -1401,6 +1715,27 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
         </div>
       `;
     };
+
+    // Soporte para Callouts (Notion-style)
+    renderer.blockquote = (args) => {
+      const text = typeof args === 'object' ? args.text : args;
+      const calloutMatch = text.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n?([\s\S]*)$/i);
+      if (calloutMatch) {
+        const type = calloutMatch[1].toLowerCase();
+        const content = calloutMatch[2];
+        const icons = {
+          note: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+          tip: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .5 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/></svg>',
+          important: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+          warning: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        };
+        return `<div class="notion-callout ${type}">${icons[type] || icons.note}<div>${content}</div></div>`;
+      }
+      return `<blockquote>${text}</blockquote>`;
+    };
+
+    renderer.hr = () => '<hr class="notion-divider" />';
+
     window.marked.setOptions({ renderer, breaks: true, gfm: true });
     setHtml(window.marked.parse(markdownSource));
   }, [content, isReady, isFullHtml, renderMode]);
@@ -1479,5 +1814,164 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={handleContainerClick}
     />
+  );
+}
+
+// --- Toolbar para Markdown ---
+function MarkdownToolbar({ onInsert, onUpload, onOpenGallery, onOpenTableWizard }) {
+  const [showTableGrid, setShowTableGrid] = useState(false);
+  const [hoverGrid, setHoverGrid] = useState({ r: 0, c: 0 });
+  const fileInputRef = useRef(null);
+  const tableGridRef = useRef(null);
+
+  // Cerrar dropdown de tablas al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (tableGridRef.current && !tableGridRef.current.contains(e.target)) {
+        setShowTableGrid(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const onInsertTable = (rows, cols) => {
+    let tableHtml = '\n<table style="width: 100%; border-collapse: collapse;"><thead><tr>';
+    for (let c = 0; c < cols; c++) {
+      tableHtml += '<th style="border: 1px solid #e2e8f0; padding: 12px; background: #f8fafc;">Título</th>';
+    }
+    tableHtml += '</tr></thead><tbody>';
+    for (let r = 1; r < rows; r++) {
+      tableHtml += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        tableHtml += '<td style="border: 1px solid #e2e8f0; padding: 12px;"></td>';
+      }
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</tbody></table>\n';
+    onInsert(tableHtml);
+    setShowTableGrid(false);
+  };
+
+  const tools = [
+    { label: 'H1', icon: <Heading1 size={16} />, text: '# ' },
+    { label: 'H2', icon: <Heading2 size={16} />, text: '## ' },
+    { label: 'H3', icon: <Heading3 size={16} />, text: '### ' },
+    { label: 'Negrita', icon: <Bold size={16} />, text: '****', offset: 2 },
+    { label: 'Cursiva', icon: <Italic size={16} />, text: '__', offset: 1 },
+    { label: 'Lista', icon: <List size={16} />, text: '\n- ' },
+    { label: 'Tarea', icon: <CheckSquare size={16} />, text: '\n- [ ] ' },
+    { label: 'Tabla', icon: <TableIcon size={16} />, onClick: () => onOpenTableWizard() },
+    { label: 'Imagen', icon: <ImageIcon size={16} />, onClick: () => fileInputRef.current.click() },
+    { label: 'Galería', icon: <Share2 size={16} />, onClick: () => onOpenGallery() },
+    { label: 'Link', icon: <LinkIcon size={16} />, text: '[]()', offset: 1 },
+    { label: 'Cita', icon: <Quote size={16} />, text: '\n> ' },
+    { label: 'Código', icon: <Code size={16} />, text: '\n```\n\n```\n', offset: 5 },
+    { label: 'Diagrama', icon: <Activity size={16} />, text: '\n```mermaid\ngraph TD\n  A --> B\n```\n' },
+    { label: 'Separador', icon: <Minus size={16} />, text: '\n---\n' },
+    { label: 'Callout', icon: <AlertCircle size={16} />, text: '\n> [!NOTE]\n> ' },
+  ];
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file && onUpload) {
+      await onUpload(file);
+    }
+    e.target.value = ''; // Reset
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1 p-2 bg-white border border-slate-200 rounded-xl shadow-sm">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept="image/*,.svg" 
+        onChange={handleFileChange} 
+      />
+      {tools.map((tool, i) => (
+        <div key={i} className="relative">
+          <button
+            onClick={() => {
+              if (tool.onClick) {
+                tool.onClick();
+              } else {
+                onInsert(tool.text);
+              }
+            }}
+            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all flex items-center gap-1.5"
+            title={tool.label}
+          >
+            {tool.icon}
+            <span className="text-[10px] font-bold uppercase hidden md:inline">{tool.label}</span>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// --- Modal de Galería ---
+export function GalleryModal({ onClose, onSelect }) {
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/images`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setImages(data);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Gallery error:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <header className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Galería de Imágenes</h2>
+            <p className="text-xs text-slate-400">Selecciona una imagen previamente subida.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </header>
+        
+        <main className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="animate-spin text-indigo-500" size={32} />
+              <p className="text-slate-400 text-sm">Cargando tus imágenes...</p>
+            </div>
+          ) : !images || images.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
+              <ImageIcon size={48} className="opacity-20" />
+              <p>No tienes imágenes guardadas.</p>
+              <p className="text-xs">Sube una primero desde el editor.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {images.map((img, i) => (
+                <div 
+                  key={i} 
+                  onClick={() => onSelect(img.url)}
+                  className="group relative aspect-square rounded-xl overflow-hidden border border-slate-100 cursor-pointer hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500/20 transition-all bg-slate-50"
+                >
+                  <img src={getAssetUrl(img.url)} alt={img.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white text-[10px] font-bold uppercase tracking-wider">Insertar</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
   );
 }

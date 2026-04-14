@@ -1,4 +1,4 @@
-# 📋 Guía de Deploy — Notes App con SQLite en VPS
+# 📋 Guía de Deploy — ReNote con SQLite en VPS
 
 ## Estructura del proyecto
 
