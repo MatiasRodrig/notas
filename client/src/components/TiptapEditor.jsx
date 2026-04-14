@@ -7,12 +7,13 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { Placeholder } from '@tiptap/extension-placeholder';
+import { Image } from '@tiptap/extension-image';
 import { 
   Bold, Italic, List, ListOrdered, CheckSquare, 
   Heading1, Heading2, Heading3, Quote, Code, 
   Table as TableIcon, Maximize, Undo, Redo, 
   Columns, Save, ChevronDown, Trash2, 
-  Plus, Minus, Layout, Activity,
+  Plus, Minus, Layout, Activity, Image as ImageIcon,
   ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
@@ -41,6 +42,12 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
           return 'Comienza a escribir o usa "/" para comandos...';
         },
       }),
+      Image.configure({
+        allowBase64: true,
+        HTMLAttributes: {
+          class: 'rounded-lg shadow-md max-w-full h-auto my-4 border border-slate-200',
+        },
+      }),
     ],
     content: content,
     onUpdate: ({ editor }) => {
@@ -49,6 +56,41 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
     editorProps: {
       attributes: {
         class: 'tiptap prose prose-slate max-w-none focus:outline-none min-h-[500px] px-8 py-4',
+      },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+          const file = event.dataTransfer.files[0];
+          if (file.type.startsWith('image/')) {
+            uploadImage(file).then(url => {
+              if (url) {
+                const { schema } = view.state;
+                const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                const node = schema.nodes.image.create({ src: url });
+                const transaction = view.state.tr.insert(coordinates.pos, node);
+                view.dispatch(transaction);
+              }
+            });
+            return true;
+          }
+        }
+        return false;
+      },
+      handlePaste: (view, event) => {
+        if (event.clipboardData && event.clipboardData.files && event.clipboardData.files[0]) {
+          const file = event.clipboardData.files[0];
+          if (file.type.startsWith('image/')) {
+            uploadImage(file).then(url => {
+              if (url) {
+                const { schema } = view.state;
+                const node = schema.nodes.image.create({ src: url });
+                const transaction = view.state.tr.replaceSelectionWith(node);
+                view.dispatch(transaction);
+              }
+            });
+            return true;
+          }
+        }
+        return false;
       },
     },
   });
@@ -76,6 +118,43 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  
+  const fileInputRef = useRef(null);
+
+  const uploadImage = async (file) => {
+    if (file.size > 10 * 1024 * 1024) {
+      alert("La imagen es demasiado grande. Máximo 10MB.");
+      return null;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.url) return data.url;
+      throw new Error(data.error || "Error al subir imagen");
+    } catch (err) {
+      console.error(err);
+      alert("Error al subir la imagen.");
+      return null;
+    }
+  };
+
+  const onFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = await uploadImage(file);
+      if (url) {
+        editor.chain().focus().setImage({ src: url }).run();
+      }
+    }
+    e.target.value = ''; // Reset input
+  };
 
   const insertCornell = () => {
     editor.chain().focus().insertContent(`
@@ -215,6 +294,21 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
             className="p-2 rounded hover:bg-slate-100 text-slate-600"
             title="Insertar Formato Cornell"
           ><Columns size={18} /></button>
+
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 rounded hover:bg-slate-100 text-slate-600"
+            title="Subir Imagen"
+          >
+            <ImageIcon size={18} />
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={onFileSelect} 
+            />
+          </button>
         </div>
 
         {/* Acciones de Tabla Contextuales */}

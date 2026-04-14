@@ -1,4 +1,4 @@
-# 📝 Notes App — HTML, Markdown & Mermaid (v1.5.2)
+# 📝 Notes App — HTML, Markdown & Mermaid (v1.6)
 
 [Español](#español) | [English](#english)
 
@@ -8,6 +8,12 @@
 ## 🇪🇸 Español
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
+
+### 🚀 Novedades v1.6
+- **Subida de Imágenes**: Nuevo soporte para insertar imágenes (PNG, JPG, SVG, etc.) directamente en tus notas.
+- **Drag & Drop y Clipboard**: Sube imágenes arrastrándolas al editor o pegándolas desde el portapapeles sin configuraciones extra.
+- **Gestión Local**: Carpeta `uploads/` dedicada en el servidor para almacenamiento local persistente con límite de 10MB por archivo.
+- **Estética Optimizada**: Las imágenes se renderizan automáticamente con bordes redondeados, sombras y diseño responsivo.
 
 ### 🚀 Novedades v1.5.2
 
@@ -75,6 +81,7 @@ Notas/
 ├── package.json       # Dependencias del Backend
 ├── setup.sh           # Script de despliegue automático para VPS
 ├── NGINX_CONFIG.md    # Guía de configuración de Proxy Inverso
+├── uploads/           # Carpeta de almacenamiento de imágenes subidas
 ├── data/              # Almacenamiento de la DB (.sqlite)
 ├── client/            # Código fuente del Frontend (Vite)
 │   ├── src/
@@ -135,6 +142,12 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 ## 🇺🇸 English
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
+
+### 🚀 What's New in v1.6
+- **Image Uploads**: Full support for inserting images (PNG, JPG, SVG, etc.) directly into your notes.
+- **Drag & Drop & Clipboard**: Upload images by dragging them into the editor or pasting from the clipboard effortlessly.
+- **Local Management**: Dedicated `uploads/` folder on the server for persistent local storage with a 10MB per file limit.
+- **Optimized Aesthetics**: Images are automatically rendered with rounded corners, shadows, and responsive design.
 
 ### 🚀 What's New in v1.5.2
 
@@ -202,6 +215,7 @@ Notas/
 ├── package.json       # Backend Dependencies
 ├── setup.sh           # Automatic VPS deployment script
 ├── NGINX_CONFIG.md    # Reverse Proxy configuration guide
+├── uploads/           # Uploaded images storage folder
 ├── data/              # DB Storage (.sqlite)
 ├── client/            # Frontend Source Code (Vite)
 │   ├── src/

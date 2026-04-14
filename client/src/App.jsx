@@ -338,6 +338,9 @@ export default function App() {
         .markdown-body li { margin-bottom: 0.25em; }
         .markdown-body code { background-color: #f1f5f9; padding: 0.2em 0.4em; border-radius: 0.25rem; font-family: ui-monospace, monospace; font-size: 0.875em; color: #db2777; }
         
+        /* Imágenes */
+        .markdown-body img { max-width: 100%; height: auto; border-radius: 0.75rem; border: 1px solid #e2e8f0; margin: 1.5rem auto; display: block; shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
         /* Code Cards Estilo Notion */
         .code-card { background-color: #1e293b; border-radius: 0.75rem; margin-bottom: 1.5em; overflow: hidden; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .code-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background-color: #0f172a; border-bottom: 1px solid #334155; }
