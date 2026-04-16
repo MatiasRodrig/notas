@@ -465,6 +465,19 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
         .tiptap ul[data-type="taskList"] li > div {
           flex: 1 1 auto;
         }
+        .tiptap ul:not([data-type="taskList"]) {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin-bottom: 1rem;
+        }
+        .tiptap ol {
+          list-style-type: decimal;
+          padding-left: 1.5rem;
+          margin-bottom: 1rem;
+        }
+        .tiptap li {
+          margin-bottom: 0.25rem;
+        }
         .tiptap table {
           border-collapse: collapse;
           table-layout: fixed;
