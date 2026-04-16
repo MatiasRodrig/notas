@@ -881,8 +881,10 @@ function HomeView({
                         <div 
                           key={note.id} 
                           onClick={() => { onViewNote(note.id); setShowNotifications(false); }}
+                          className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer group transition-colors"
+                        >
                           <div className="flex justify-between items-center gap-2">
-                            <div className="flex-grow min-w-0" onClick={() => { onViewNote(note.id); setShowNotifications(false); }}>
+                            <div className="flex-grow min-w-0">
                               <div className="flex justify-between items-start gap-2">
                                 <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{note.title || 'Sin título'}</h4>
                                 {note.isExpired ? (
