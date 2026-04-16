@@ -19,7 +19,7 @@ import {
   Columns, Save, ChevronDown, Trash2, 
   Plus, Minus, Layout, Activity, Image as ImageIcon,
   ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine,
-  Share2
+  Share2, Terminal, SquareCode, FileCode
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { API_BASE, getAssetUrl, GalleryModal } from '../App';
@@ -32,7 +32,7 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        code: false, // Desactivamos el código inline automático para que no atrape las comillas
+        // starter-kit ya incluye code y codeBlock por defecto
       }),
       TaskList.configure(),
       TaskItem.configure({
@@ -321,10 +321,22 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
           </div>
 
           <button 
+            onClick={() => editor.chain().focus().toggleCode().run()}
+            className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${editor.isActive('code') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+            title="Código Inline"
+          ><Code size={16} /></button>
+
+          <button 
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${editor.isActive('codeBlock') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+            title="Bloque de Código"
+          ><SquareCode size={16} /></button>
+
+          <button 
             onClick={() => setShowMarkdownModal(true)}
             className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
             title="Insertar desde Markdown"
-          ><Code size={16} /></button>
+          ><FileCode size={16} /></button>
           <button 
             onClick={() => setShowMermaidModal(true)}
             className="p-1.5 rounded hover:bg-slate-100 text-slate-500"

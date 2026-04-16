@@ -3,7 +3,7 @@ import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
   Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
   Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon, Image as ImageIcon,
-  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search, Bell
+  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search, Bell, Check
 } from 'lucide-react';
 import TiptapEditor from './components/TiptapEditor';
 import CalendarView from './components/CalendarView';
@@ -77,6 +77,7 @@ const api = {
   removeTagFromNote: (noteId, tagId) => apiFetch(`/notes/${noteId}/tags/${tagId}`, { method: 'DELETE' }),
   updateNoteTags: (noteId, tagIds) => apiFetch(`/notes/${noteId}/tags`, { method: 'PUT', body: JSON.stringify({ tagIds }) }),
   patchNote: (id, data) => apiFetch(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }).catch(() => api.updateNote(id, data)), // Fallback a PUT si PATCH no existe
+  markAsRead: (id) => apiFetch(`/notes/${id}`, { method: 'PUT', body: JSON.stringify({ notificationRead: true, status: 'completed' }) }),
 };
 
 const CATEGORY_COLORS = [
@@ -179,7 +180,7 @@ export default function App() {
     const todayStr = now.toISOString().split('T')[0];
     
     const expiredOrToday = notes.filter(n => {
-      if (!n.deadline || n.objectiveType === 'none') return false;
+      if (!n.deadline || n.objectiveType === 'none' || n.notificationRead) return false;
       const deadlineStr = n.deadline.split('T')[0];
       return deadlineStr <= todayStr;
     }).map(n => ({
@@ -305,6 +306,36 @@ export default function App() {
       }
     } catch (err) {
       showError(`Error al eliminar categoría: ${err.message}`);
+    }
+  };
+
+  const handleMarkAsRead = async (noteId) => {
+    try {
+      const note = notes.find(n => n.id === noteId);
+      if (!note) return;
+      
+      // Actualizamos localmente primero para mejor UX
+      setNotes(ns => ns.map(n => n.id === noteId ? { ...n, notificationRead: true, status: 'completed' } : n));
+      
+      // Llamada al API
+      await api.markAsRead(noteId);
+    } catch (err) {
+      console.error('Error marking as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const idsToMark = notifications.map(n => n.id);
+      if (idsToMark.length === 0) return;
+
+      // Actualizamos localmente
+      setNotes(ns => ns.map(n => idsToMark.includes(n.id) ? { ...n, notificationRead: true, status: 'completed' } : n));
+
+      // Llamadas al API en paralelo
+      await Promise.all(idsToMark.map(id => api.markAsRead(id)));
+    } catch (err) {
+      console.error('Error marking all as read:', err);
     }
   };
 
@@ -566,6 +597,8 @@ export default function App() {
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}
           notifications={notifications}
+          onMarkAsRead={handleMarkAsRead}
+          onMarkAllAsRead={handleMarkAllAsRead}
         />
       )}
       {view === 'editor' && (
@@ -630,7 +663,7 @@ function HomeView({
   notes, categories, activeCategoryId, setActiveCategoryId, 
   activeObjectiveFilter, setActiveObjectiveFilter, searchTerm, setSearchTerm, setView,
   onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory,
-  notifications
+  notifications, onMarkAsRead, onMarkAllAsRead
 }) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [addingToParentId, setAddingToParentId] = useState(null);
@@ -826,8 +859,16 @@ function HomeView({
 
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                  <div className="p-3 border-b border-slate-100 bg-slate-50">
+                  <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                     <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Notificaciones</h3>
+                    {notifications.length > 0 && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onMarkAllAsRead(); }}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase"
+                      >
+                        Marcar todo como leído
+                      </button>
+                    )}
                   </div>
                   <div className="max-h-80 overflow-y-auto custom-scrollbar">
                     {notifications.length === 0 ? (
@@ -840,19 +881,28 @@ function HomeView({
                         <div 
                           key={note.id} 
                           onClick={() => { onViewNote(note.id); setShowNotifications(false); }}
-                          className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 group"
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{note.title || 'Sin título'}</h4>
-                            {note.isExpired ? (
-                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded-md font-bold uppercase">Vencido</span>
-                            ) : (
-                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold uppercase">Hoy</span>
-                            )}
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex-grow min-w-0" onClick={() => { onViewNote(note.id); setShowNotifications(false); }}>
+                              <div className="flex justify-between items-start gap-2">
+                                <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{note.title || 'Sin título'}</h4>
+                                {note.isExpired ? (
+                                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded-md font-bold uppercase">Vencido</span>
+                                ) : (
+                                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold uppercase">Hoy</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                                <CalendarIcon size={10} /> {new Date(note.deadline).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onMarkAsRead(note.id); }}
+                              className="shrink-0 p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                              title="Marcar como leído y completar tarea"
+                            >
+                              <Check size={16} />
+                            </button>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                            <CalendarIcon size={10} /> {new Date(note.deadline).toLocaleDateString()}
-                          </p>
                         </div>
                       ))
                     )}
