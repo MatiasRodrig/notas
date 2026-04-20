@@ -127,18 +127,37 @@ function useExternalScripts() {
     ]).then(() => {
       window.mermaid?.initialize({ startOnLoad: false, theme: 'default' });
       
-      // Función global para copiar código
-      window.copyCodeToClipboard = (btn, encodedCode) => {
-        const code = decodeURIComponent(encodedCode);
-        navigator.clipboard.writeText(code).then(() => {
+      // Función global para copiar código - Versión mejorada
+      window.copyCodeToClipboard = async (btn, code) => {
+        try {
+          if (!code) {
+             const card = btn.closest('.code-card');
+             code = card?.querySelector('code')?.innerText || '';
+          }
+          await navigator.clipboard.writeText(code);
           const originalHTML = btn.innerHTML;
-          btn.innerHTML = '¡Copiado!';
-          btn.classList.add('text-green-400');
+          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500"><polyline points="20 6 9 17 4 12"></polyline></svg> ¡Copiado!';
+          btn.classList.add('text-green-500');
           setTimeout(() => {
             btn.innerHTML = originalHTML;
-            btn.classList.remove('text-green-400');
+            btn.classList.remove('text-green-500');
           }, 2000);
-        });
+        } catch (err) {
+          console.error('Error al copiar:', err);
+          // Fallback para contextos no seguros
+          const textArea = document.createElement("textarea");
+          textArea.value = code;
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            btn.innerHTML = '¡Copiado!';
+            setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
+          } catch (e) {
+            alert('No se pudo copiar el código automáticamente.');
+          }
+          document.body.removeChild(textArea);
+        }
       };
 
       setReady(true);
@@ -340,19 +359,70 @@ export default function App() {
   };
 
   const handleExportPDF = async (note) => {
-    const doc = new jsPDF('p', 'pt', 'a4');
     const element = document.getElementById('note-render-area');
     if (!element) return;
-    
-    // Temporalmente quitamos sombras y bordes para captura limpia
-    const canvas = await html2canvas(element, { scale: 2 });
-    const imgData = canvas.toDataURL('image/png');
-    const imgProps = doc.getImageProperties(imgData);
-    const pdfWidth = doc.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-    doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    doc.save(`${note.title || 'nota'}.pdf`);
+
+    try {
+      // Usamos mm para mayor precisión en el diseño de página
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 20; 
+      const contentWidth = pageWidth - (margin * 2);
+      const contentHeight = pageHeight - (margin * 2);
+
+      // Guardar posición de scroll y mover al inicio para captura limpia
+      const scrollPos = window.scrollY;
+      window.scrollTo(0, 0);
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0
+      });
+
+      // Restaurar posición de scroll original
+      window.scrollTo(0, scrollPos);
+
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      
+      const scaledHeight = (imgHeight * contentWidth) / imgWidth;
+      
+      let heightLeft = scaledHeight;
+      let position = margin;
+      let pageNumber = 1;
+      
+      const addPageInfo = (num) => {
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Página ${num}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      };
+
+      // Primera página
+      doc.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
+      addPageInfo(pageNumber);
+      heightLeft -= contentHeight;
+
+      // Páginas adicionales
+      while (heightLeft > 0) {
+        position = (heightLeft - scaledHeight) + margin;
+        doc.addPage();
+        pageNumber++;
+        doc.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
+        addPageInfo(pageNumber);
+        heightLeft -= contentHeight;
+      }
+
+      doc.save(`${note.title || 'nota'}.pdf`);
+    } catch (err) {
+      console.error('Error al exportar PDF:', err);
+      showError('Error al generar PDF. Por favor, refresca la página (F5) e inténtalo de nuevo.');
+    }
   };
 
   const handleExportMD = (note) => {
@@ -436,8 +506,26 @@ export default function App() {
         .code-card select { appearance: none; background: transparent; border: none; color: #94a3b8; font-family: ui-monospace, monospace; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; outline: none; }
         .code-card select option { background: #0f172a; color: #f8fafc; }
         
-        .markdown-body pre { background-color: transparent; color: #f8fafc; padding: 1rem; margin: 0; border-radius: 0; overflow-x: auto; }
-        .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9rem; line-height: 1.5; }
+        .markdown-body pre { background-color: transparent; color: #f8fafc; padding: 1rem; margin: 0; border-radius: 0; overflow-x: auto; flex-grow: 1; }
+        .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9rem; line-height: 1.5; white-space: pre; }
+        
+        /* Números de línea */
+        .line-numbers-col { 
+          display: flex; 
+          flex-direction: column; 
+          font-family: ui-monospace, monospace; 
+          font-size: 0.75rem; 
+          color: #475569; 
+          min-width: 2.5rem;
+          user-select: none;
+        }
+        .line-number {
+          line-height: 1.5; /* Debe coincidir con el line-height del código */
+          height: 1.35rem; /* Ajuste fino */
+          display: block;
+        }
+        .code-content-wrapper { background-color: #0f172a; display: flex; overflow-x: auto; }
+        .code-card-footer { user-select: none; }
         
         /* Ajustes de highlight.js para que combinen con la tarjeta */
         .hljs { background: transparent !important; padding: 0 !important; }
@@ -1754,16 +1842,31 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
 
       const encodedCode = encodeURIComponent(code);
       
+      // Procesar números de línea
+      const lines = code.split('\n');
+      const lineNumbersHtml = lines.map((_, i) => `<span class="line-number">${i + 1}</span>`).join('');
+      
       return `
-        <div class="code-card">
+        <div class="code-card group/card" data-code="${encodedCode}">
           <div class="code-card-header">
-            <span class="code-lang">${language || 'code'}</span>
-            <button class="copy-btn" onclick="copyCodeToClipboard(this, \`${encodedCode}\`)">
+            <div class="flex items-center gap-2">
+               <span class="code-lang">${language || 'code'}</span>
+            </div>
+            <button class="copy-btn hover:scale-105 active:scale-95 transition-transform" data-copy-trigger="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               Copiar
             </button>
           </div>
-          <pre><code class="hljs language-${language || ''}">${highlightedCode}</code></pre>
+          <div class="code-content-wrapper flex">
+            <div class="line-numbers-col py-4 px-2 text-right bg-slate-900/30 border-r border-slate-700 select-none hidden sm:block">
+              ${lineNumbersHtml}
+            </div>
+            <pre class="flex-grow"><code class="hljs language-${language || ''}">${highlightedCode}</code></pre>
+          </div>
+          <div class="code-card-footer px-4 py-1.5 bg-slate-900/20 border-t border-slate-700/50 flex justify-between items-center">
+             <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Fin del bloque</span>
+             <span class="text-[9px] text-slate-600 font-mono">${lines.length} líneas</span>
+          </div>
         </div>
       `;
     };
@@ -1808,27 +1911,35 @@ function MarkdownRenderer({ content, isReady, renderMode, onUpdate }) {
     return () => clearTimeout(id);
   }, [html, isReady, isFullHtml, renderMode]);
 
-  // Manejador de clics para tareas
+  // Manejador de clics para tareas y copia de código
   const handleContainerClick = (e) => {
+    // Caso 1: Click en checkbox de tareas
     if (e.target.type === 'checkbox' && onUpdate) {
-      // Encontrar el índice de la casilla pulsada entre todas las casillas del renderizador
       const allCheckboxes = Array.from(containerRef.current.querySelectorAll('input[type="checkbox"]'));
       const index = allCheckboxes.indexOf(e.target);
       
       if (index !== -1) {
         const isChecked = e.target.checked;
-        
-        // Parsear el contenido original (HTML de Tiptap) para no corromperlo con el HTML renderizado
         const parser = new DOMParser();
         const doc = parser.parseFromString(content, 'text/html');
         const tasks = doc.querySelectorAll('li[data-type="taskItem"]');
         
         if (tasks[index]) {
-          // Actualizar solo el atributo de la tarea correspondiente en el contenido original
           tasks[index].setAttribute('data-checked', isChecked ? 'true' : 'false');
-          // Enviar el HTML actualizado manteniendo la estructura original de Tiptap
           onUpdate(doc.body.innerHTML);
         }
+      }
+      return;
+    }
+
+    // Caso 2: Click en botón de copiar (Delegación de eventos)
+    const copyBtn = e.target.closest('[data-copy-trigger="true"]');
+    if (copyBtn) {
+      const card = copyBtn.closest('.code-card');
+      const encodedCode = card?.getAttribute('data-code');
+      const code = encodedCode ? decodeURIComponent(encodedCode) : '';
+      if (window.copyCodeToClipboard) {
+        window.copyCodeToClipboard(copyBtn, code);
       }
     }
   };
@@ -1918,7 +2029,7 @@ function MarkdownToolbar({ onInsert, onUpload, onOpenGallery, onOpenTableWizard 
     { label: 'Galería', icon: <Share2 size={16} />, onClick: () => onOpenGallery() },
     { label: 'Link', icon: <LinkIcon size={16} />, text: '[]()', offset: 1 },
     { label: 'Cita', icon: <Quote size={16} />, text: '\n> ' },
-    { label: 'Código', icon: <Code size={16} />, text: '\n```\n\n```\n', offset: 5 },
+    { label: 'Código', icon: <Code size={16} />, text: '\n```javascript\n\n```\n', offset: 15 },
     { label: 'Diagrama', icon: <Activity size={16} />, text: '\n```mermaid\ngraph TD\n  A --> B\n```\n' },
     { label: 'Separador', icon: <Minus size={16} />, text: '\n---\n' },
     { label: 'Callout', icon: <AlertCircle size={16} />, text: '\n> [!NOTE]\n> ' },

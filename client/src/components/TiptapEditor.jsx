@@ -214,6 +214,75 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
     editor.chain().focus().insertContent(`<blockquote>[!${c.icon}]\nTu texto aquí...</blockquote>`).run();
   };
 
+  const toggleSelectionAsSingleCodeBlock = () => {
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      editor.chain().focus().toggleCodeBlock().run();
+      return;
+    }
+
+    // Si ya estamos dentro de un codeBlock, lo quitamos
+    if (editor.isActive('codeBlock')) {
+      editor.chain().focus().toggleCodeBlock().run();
+      return;
+    }
+
+    // Extraer todo el texto de la selección uniendo bloques con saltos de línea
+    const text = editor.state.doc.textBetween(from, to, '\n');
+    
+    // Limpiar espacios redundantes al inicio/final
+    const cleanText = text.trim();
+
+    editor.chain()
+      .focus()
+      .deleteSelection()
+      .insertContent({
+        type: 'codeBlock',
+        content: [{ type: 'text', text: cleanText || ' ' }]
+      })
+      .run();
+  };
+
+  const beautifyCode = () => {
+    if (!editor.isActive('codeBlock')) return;
+    
+    const attrs = editor.getAttributes('codeBlock');
+    const content = editor.state.doc.textBetween(
+      editor.state.selection.$from.before(),
+      editor.state.selection.$from.after(),
+      '\n'
+    );
+    
+    // Algoritmo de indentación simple (2 espacios)
+    const lines = content.split('\n');
+    let level = 0;
+    const formattedLines = lines.map(line => {
+      let trimmed = line.trim();
+      
+      // Si la línea empieza con }, bajamos el nivel ANTES de procesar
+      if (trimmed.startsWith('}')) level = Math.max(0, level - 1);
+      
+      const indented = '  '.repeat(level) + trimmed;
+      
+      // Si la línea contiene { (y no es un comentario simple), subimos el nivel para la SIGUIENTE línea
+      if (trimmed.includes('{') && !trimmed.includes('//')) level++;
+      // Si la línea contiene } después de algún texto, pero no al principio (ya manejado), bajamos el nivel
+      // Pero para simplificar, el check de startWith '}' suele ser suficiente para la mayoría de códigos C-style
+      
+      return indented;
+    });
+
+    const finalCode = formattedLines.join('\n').trim();
+    editor.chain().focus().updateAttributes('codeBlock', { language: attrs.language }).insertContent(finalCode).run();
+    
+    // Para asegurar que reemplazamos el contenido del bloque actual
+    const pos = editor.state.selection.$from.before();
+    editor.commands.command(({ tr }) => {
+      tr.insertText(finalCode, pos + 1, editor.state.selection.$from.after() - 1);
+      return true;
+    });
+  };
+
   const MenuBar = () => {
     return (
       <div className="editor-toolbar sticky top-0 bg-white/95 backdrop-blur-md z-10 border-b border-slate-200 p-1 flex flex-wrap gap-0.5 rounded-t-xl shadow-sm">
@@ -327,9 +396,9 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
           ><Code size={16} /></button>
 
           <button 
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            onClick={toggleSelectionAsSingleCodeBlock}
             className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${editor.isActive('codeBlock') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
-            title="Bloque de Código"
+            title="Bloque de Código (Fusión)"
           ><SquareCode size={16} /></button>
 
           <button 
@@ -373,6 +442,51 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
           </div>
           <button onClick={insertCornell} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title="Formato Cornell"><Columns size={16} /></button>
         </div>
+
+        {/* Grupo Extra: Controles de Bloque Activo (Contextual) */}
+        {editor.isActive('codeBlock') && (
+          <div className="toolbar-group flex items-center gap-1 px-2 py-1 bg-indigo-50/50 rounded-lg border border-indigo-100 animate-in slide-in-from-left-2 duration-200 ml-1">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase mr-1">Bloque:</span>
+            <select 
+              value={editor.getAttributes('codeBlock').language || 'javascript'}
+              onChange={(e) => editor.chain().focus().updateAttributes('codeBlock', { language: e.target.value }).run()}
+              className="bg-white border border-indigo-200 text-indigo-700 text-[10px] font-bold rounded px-1 py-0.5 outline-none"
+            >
+              <option value="javascript">JS</option>
+              <option value="csharp">C#</option>
+              <option value="php">PHP</option>
+              <option value="c">C</option>
+              <option value="sql">SQL</option>
+              <option value="css">CSS</option>
+            </select>
+            <button 
+              onClick={beautifyCode}
+              className="p-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50"
+              title="Auto-formatear (Varita mágica)"
+            >
+              <Activity size={12} className="text-amber-500" />
+            </button>
+            <button 
+              onClick={() => {
+                editor.chain().focus().insertContentAt(editor.state.selection.to, '<p></p>', { updateSelection: true }).run();
+              }}
+              className="p-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50"
+              title="Salir del bloque (Insertar párrafo debajo)"
+            >
+              <ArrowDownToLine size={12} />
+            </button>
+            <button 
+              onClick={(e) => {
+                const code = editor.getAttributes('codeBlock').code || editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, '\n');
+                window.copyCodeToClipboard(e.currentTarget, code);
+              }}
+              className="p-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50"
+              title="Copiar Código"
+            >
+              <Share2 size={12} />
+            </button>
+          </div>
+        )}
 
         {/* Grupo 6: Imágenes y Emojis */}
         <div className="toolbar-group flex items-center gap-0.5 px-1 border-r border-slate-200">
@@ -515,6 +629,45 @@ const TiptapEditor = ({ content, onChange, type = 'standard' }) => {
           width: 4px;
           background-color: #adf;
           pointer-events: none;
+        }
+
+        /* Estilos de Bloque de Código en el Editor */
+        .tiptap pre {
+          background: #0f172a;
+          color: #f8fafc;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          padding: 1.5rem 1rem 1rem 1rem;
+          border-radius: 0.75rem;
+          margin: 1.5rem 0;
+          position: relative;
+          border: 2px solid #334155;
+        }
+        .tiptap pre::before {
+          content: "CÓDIGO";
+          position: absolute;
+          top: 0;
+          left: 1rem;
+          font-size: 10px;
+          font-weight: 900;
+          color: #475569;
+          letter-spacing: 0.1em;
+          padding: 2px 0;
+        }
+        .tiptap pre code {
+          background: none;
+          color: inherit;
+          font-size: 0.9rem;
+          padding: 0;
+        }
+        .tiptap pre:hover {
+          border-color: #4f46e5;
+        }
+        .tiptap code {
+          background-color: #f1f5f9;
+          padding: 0.2rem 0.4rem;
+          border-radius: 0.25rem;
+          font-size: 0.9em;
+          color: #eb5757;
         }
       `}</style>
     </div>

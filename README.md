@@ -1,4 +1,4 @@
-# 📝 ReNote — HTML, Markdown & Mermaid (v1.7)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.8)
 
 [Español](#español) | [English](#english)
 
@@ -9,31 +9,35 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.7
+### 🚀 Novedades v1.8
+- **Exportación PDF Pro**: Soporte para notas de múltiples páginas con numeración automática y márgenes optimizados para impresión A4.
+- **Bloques de Código Inteligentes**: Inclusión de números de línea, pie de página con conteo de líneas y botón de copia rápida mejorado en el visor.
+- **Barra de Herramientas de Código**: Nuevo menú contextual para bloques de código que permite cambiar el lenguaje y auto-formatear (beautify) el contenido.
+- **Fusión de Código**: Nueva función para convertir cualquier selección de texto en un bloque de código limpio en un solo clic.
+
+### 🚀 Historial
+
+#### v1.7
 - **Editor Visual Avanzado**: Soporte mejorado para colores de texto, resaltados y subrayados que se persisten correctamente al guardar.
 - **Tablas en Toolbar**: Nueva interfaz en la barra de herramientas para insertar tablas HTML personalizadas directamente.
 - **Centro de Notificaciones**: Ícono de campana dinámico que alerta sobre objetivos próximos a vencer o vencidos.
 - **Mejoras de Estabilidad**: Solución a problemas de renderizado de imágenes residuales y optimización de carga de scripts externos.
 
-### 🚀 Novedades v1.6
+#### v1.6
 - **Subida de Imágenes**: Nuevo soporte para insertar imágenes (PNG, JPG, SVG, etc.) directamente en tus notas.
 - **Drag & Drop y Clipboard**: Sube imágenes arrastrándolas al editor o pegándolas desde el portapapeles sin configuraciones extra.
 - **Gestión Local**: Carpeta `uploads/` dedicada en el servidor para almacenamiento local persistente con límite de 10MB por archivo.
 - **Estética Optimizada**: Las imágenes se renderizan automáticamente con bordes redondeados, sombras y diseño responsivo.
 
-### 🚀 Novedades v1.5.2
-
+#### v1.5.2
 - **Editor HTML Dedicado**: Nuevo editor de código monoespaciado para el modo "HTML Puro", evitando que el editor visual escape etiquetas HTML.
 - **Renderizado HTML Mejorado**: Aislamiento robusto mediante iframes para documentos completos y renderizado directo para fragmentos parciales.
 - **Estética de Código**: Nueva interfaz oscura para el editor de HTML que mejora la legibilidad de etiquetas.
 
-### 🚀 Novedades v1.5
-
+#### v1.5
 - **Buscador Global**: Nueva barra de búsqueda en el Home que permite filtrar notas por título, contenido, fecha, categorías y etiquetas en tiempo real.
 - **Listas de Tareas Interactivas**: Ahora puedes marcar/desmarcar tareas directamente desde el visor de notas, y el estado se persistirá automáticamente en la base de datos.
 - **Sincronización Inteligente**: Los cambios en los checkboxes de las tareas se sincronizan con el contenido original (HTML/Markdown) sin corromper el formato de la nota.
-
-### 🚀 Historial
 
 #### v1.4
 - **Barra de Herramientas Sticky**: El menú del editor Tiptap ahora permanece visible en la parte superior mientras haces scroll.
@@ -138,7 +142,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 ReNote — HTML, Markdown & Mermaid (v1.7)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.8)
 
 [Español](#español) | [English](#english)
 
@@ -149,31 +153,35 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.7
+### 🚀 What's New in v1.8
+- **Pro PDF Export**: Support for multi-page notes with automatic numbering and optimized margins for A4 printing.
+- **Smart Code Blocks**: Added line numbers, line-count footer, and improved quick-copy button in the note viewer.
+- **Code Toolbar**: New contextual menu for code blocks in the editor allows changing languages and auto-formatting (beautify) content.
+- **Code Merge**: New feature to convert any text selection into a clean code block with a single click.
+
+### 🚀 History
+
+#### v1.7
 - **Advanced Visual Editor**: Enhanced support for text colors, highlights, and underlines that persist correctly in Markdown.
 - **Toolbar Table Tools**: New interface in the toolbar to directly insert custom HTML tables.
 - **Notification System**: Dynamic bell icon alerting about upcoming or overdue goal deadlines.
 - **Stability Improvements**: Fixed residual image rendering issues and optimized external script loading.
 
-### 🚀 What's New in v1.6
+#### v1.6
 - **Image Uploads**: Full support for inserting images (PNG, JPG, SVG, etc.) directly into your notes.
 - **Drag & Drop & Clipboard**: Upload images by dragging them into the editor or pasting from the clipboard effortlessly.
 - **Local Management**: Dedicated `uploads/` folder on the server for persistent local storage with a 10MB per file limit.
 - **Optimized Aesthetics**: Images are automatically rendered with rounded corners, shadows, and responsive design.
 
-### 🚀 What's New in v1.5.2
-
+#### v1.5.2
 - **Dedicated HTML Editor**: New monospaced code editor for "HTML Puro" mode, preventing the visual editor from escaping HTML tags.
 - **Enhanced HTML Rendering**: Robust iframe isolation for full documents and direct raw rendering for partial fragments.
 - **Code Aesthetics**: New dark-themed interface for the HTML editor to improve tag readability.
 
-### 🚀 What's New in v1.5
-
+#### v1.5
 - **Global Search**: New search bar in the Home view that allows filtering notes by title, content, date, categories, and tags in real-time.
 - **Interactive Task Lists**: You can now check/uncheck tasks directly from the note viewer, and the state will be automatically persisted in the database.
 - **Smart Synchronization**: Task checkbox changes are synced with the original content (HTML/Markdown) without corrupting the note's formatting.
-
-### 🚀 History
 
 #### v1.4
 - **Sticky Toolbar**: The Tiptap editor menu now stays visible at the top while scrolling.
