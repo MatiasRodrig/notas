@@ -1,4 +1,4 @@
-# 📝 ReNote — HTML, Markdown & Mermaid (v1.8)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.9)
 
 [Español](#español) | [English](#english)
 
@@ -9,7 +9,13 @@
 
 Una aplicación de notas moderna, rápida y minimalista construida con **React (Vite)** y **Node.js (Express)**, utilizando **SQLite** como motor de base de datos. Diseñada para ser desplegada fácilmente en un VPS.
 
-### 🚀 Novedades v1.8
+### 🚀 Novedades v1.9
+- **Sección de Repaso**: Nueva vista dedicada para acceder a una "playlist" de tus notas seleccionadas personalmente para estudio continuo.
+- **Sistema de Favoritos**: Marca cualquier nota con un icono de corazón para añadirla instantáneamente a tu cola de repaso.
+- **Navegación de Sesión**: Interfaz Master-Detail que permite saltar entre notas de repaso con controles de Anterior, Siguiente y Aleatorio (Shuffle).
+- **Estética Integrada**: Nueva interfaz refinada y limpia para la sesión de repaso que mantiene la consistencia visual y el enfoque en el contenido.
+
+#### v1.8
 - **Exportación PDF Pro**: Soporte para notas de múltiples páginas con numeración automática y márgenes optimizados para impresión A4.
 - **Bloques de Código Inteligentes**: Inclusión de números de línea, pie de página con conteo de líneas y botón de copia rápida mejorado en el visor.
 - **Barra de Herramientas de Código**: Nuevo menú contextual para bloques de código que permite cambiar el lenguaje y auto-formatear (beautify) el contenido.
@@ -142,7 +148,7 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 ---
 
-# 📝 ReNote — HTML, Markdown & Mermaid (v1.8)
+# 📝 ReNote — HTML, Markdown & Mermaid (v1.9)
 
 [Español](#español) | [English](#english)
 
@@ -153,7 +159,13 @@ Para un despliegue rápido en un servidor Ubuntu/Debian:
 
 A modern, fast, and minimalist notes application built with **React (Vite)** and **Node.js (Express)**, using **SQLite** as the database engine. Designed for easy deployment on a VPS.
 
-### 🚀 What's New in v1.8
+### 🚀 What's New in v1.9
+- **Review Section**: New dedicated view to access a "playlist" of your personally selected notes for continuous study.
+- **Favorites System**: Mark any note with a heart icon to instantly add it to your review queue.
+- **Session Navigation**: Master-Detail interface that allows jumping between review notes with Previous, Next, and Shuffle controls.
+- **Integrated Aesthetics**: Refined and clean interface for the review session that maintains visual consistency and focus on content.
+
+#### v1.8
 - **Pro PDF Export**: Support for multi-page notes with automatic numbering and optimized margins for A4 printing.
 - **Smart Code Blocks**: Added line numbers, line-count footer, and improved quick-copy button in the note viewer.
 - **Code Toolbar**: New contextual menu for code blocks in the editor allows changing languages and auto-formatting (beautify) content.

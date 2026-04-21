@@ -3,7 +3,8 @@ import {
   Plus, Tag, ChevronLeft, Save, Edit3, Trash2, BookOpen, X, Loader2, AlertCircle, WifiOff,
   Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, CheckSquare, 
   Code, Table as TableIcon, Quote, Minus, Activity, Link as LinkIcon, Image as ImageIcon,
-  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search, Bell, Check
+  Calendar as CalendarIcon, Zap, Share2, Download, Filter, MoreHorizontal, CheckCircle, Search, Bell, Check, Heart, PlayCircle, ListMusic,
+  SkipForward, SkipBack, Play, Pause, Shuffle, Layout
 } from 'lucide-react';
 import TiptapEditor from './components/TiptapEditor';
 import CalendarView from './components/CalendarView';
@@ -190,6 +191,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showReviewOnly, setShowReviewOnly] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const scriptsLoaded = useExternalScripts();
 
@@ -342,6 +344,21 @@ export default function App() {
       console.error('Error marking as read:', err);
     }
   };
+  
+  const handleToggleReview = async (noteId) => {
+    try {
+      const note = notes.find(n => n.id === noteId);
+      if (!note) return;
+      const updatedNote = { ...note, isReview: !note.isReview };
+      
+      // Actualización optimista
+      setNotes(ns => ns.map(n => n.id === noteId ? updatedNote : n));
+      
+      await api.updateNote(noteId, updatedNote);
+    } catch (err) {
+      showError(`Error al cambiar estado de repaso: ${err.message}`);
+    }
+  };
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -477,7 +494,9 @@ export default function App() {
     const matchesDate = noteDate.toLocaleDateString().includes(searchTerm) || 
                        noteDate.toISOString().includes(searchTerm);
     
-    return matchesTitle || matchesContent || matchesCategory || matchesSubcategory || matchesTags || matchesDate;
+    const matchesReview = showReviewOnly ? note.isReview : true;
+    
+    return matchesReview && (matchesTitle || matchesContent || matchesCategory || matchesSubcategory || matchesTags || matchesDate);
   });
 
   return (
@@ -687,6 +706,9 @@ export default function App() {
           notifications={notifications}
           onMarkAsRead={handleMarkAsRead}
           onMarkAllAsRead={handleMarkAllAsRead}
+          showReviewOnly={showReviewOnly}
+          setShowReviewOnly={setShowReviewOnly}
+          onToggleReview={handleToggleReview}
         />
       )}
       {view === 'editor' && (
@@ -726,6 +748,17 @@ export default function App() {
             }
           }}
           scriptsLoaded={scriptsLoaded}
+          onToggleReview={handleToggleReview}
+        />
+      )}
+      {view === 'review' && (
+        <ReviewPlaylistView
+          notes={notes.filter(n => n.isReview)}
+          onBack={() => setView('home')}
+          onViewNote={(id) => { setActiveNoteId(id); setView('viewer'); }}
+          scriptsLoaded={scriptsLoaded}
+          categories={categories}
+          onToggleReview={handleToggleReview}
         />
       )}
       {view === 'calendar' && (
@@ -746,12 +779,12 @@ export default function App() {
   );
 }
 
-// --- Vista de Inicio ---
 function HomeView({ 
   notes, categories, activeCategoryId, setActiveCategoryId, 
   activeObjectiveFilter, setActiveObjectiveFilter, searchTerm, setSearchTerm, setView,
   onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory,
-  notifications, onMarkAsRead, onMarkAllAsRead
+  notifications, onMarkAsRead, onMarkAllAsRead,
+  showReviewOnly, setShowReviewOnly, onToggleReview
 }) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [addingToParentId, setAddingToParentId] = useState(null);
@@ -927,6 +960,16 @@ function HomeView({
               <CalendarIcon size={18} /> Calendario
             </button>
 
+            {/* Botón de Repaso (Playlist) */}
+            <button
+              onClick={() => setView('review')}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 border-rose-200 text-rose-600 rounded-xl hover:bg-rose-100 transition-all font-medium border"
+              title="Abrir playlist de repaso"
+            >
+              <ListMusic size={18} /> 
+              <span className="hidden sm:inline">Repaso</span>
+            </button>
+
 
 
             {/* Campana de Notificaciones */}
@@ -1087,10 +1130,14 @@ function HomeView({
 
       <main className="p-4">
         {notes.length === 0 ? (
-          <div className="text-center py-20 text-slate-400 flex flex-col items-center">
-            <Tag size={48} className="mb-4 opacity-50" />
-            <p className="text-lg">No hay notas en esta categoría.</p>
-            <p className="text-sm">¡Crea una tocando el botón de abajo!</p>
+          <div className="text-center py-20 text-slate-400 flex flex-col items-center animate-in fade-in duration-500">
+            {showReviewOnly ? <Heart size={48} className="mb-4 opacity-20 text-rose-500" /> : <Tag size={48} className="mb-4 opacity-50" />}
+            <p className="text-lg font-medium">
+              {showReviewOnly ? 'Tu lista de repaso está vacía.' : 'No hay notas en esta categoría.'}
+            </p>
+            <p className="text-sm mt-1">
+              {showReviewOnly ? 'Marca notas con el corazón para tenerlas a mano.' : '¡Crea una tocando el botón de abajo!'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1118,6 +1165,14 @@ function HomeView({
                     <h3 className="font-semibold text-lg text-slate-800 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors">
                       {note.title || 'Sin Título'}
                     </h3>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onToggleReview(note.id); }}
+                      className={`p-1.5 rounded-full transition-all ${
+                        note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-300 hover:text-rose-400 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Heart size={18} fill={note.isReview ? "currentColor" : "none"} />
+                    </button>
                   </div>
                   <p className="text-slate-500 text-sm flex-grow line-clamp-3 leading-relaxed">
                     {cleanContent || 'No hay contenido adicional.'}
@@ -1199,6 +1254,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
   const [rrule, setRrule] = useState(note?.rrule || '');
   const [objectiveType, setObjectiveType] = useState(note?.objectiveType || 'none');
   const [renderMode, setRenderMode] = useState(note?.renderMode || 'visual');
+  const [isReview, setIsReview] = useState(note?.isReview || false);
   const [selectedTagIds, setSelectedTagIds] = useState(note?.tags?.map(t => t.id) || []);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
@@ -1234,6 +1290,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
       rrule,
       objectiveType,
       renderMode,
+      isReview,
       tagIds: selectedTagIds
     };
     
@@ -1466,6 +1523,15 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
                       }`}
                     >HTML Puro</button>
                   </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                    <span className="text-sm text-slate-600 font-medium">Marcada para Repaso</span>
+                    <button 
+                      onClick={() => setIsReview(!isReview)}
+                      className={`p-2 rounded-lg border transition-all ${isReview ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-white border-slate-200 text-slate-400 hover:text-rose-400'}`}
+                    >
+                      <Heart size={18} fill={isReview ? "currentColor" : "none"} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1689,7 +1755,7 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
 }
 
 // --- Vista de Visualización ---
-function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, onUpdateContent, scriptsLoaded }) {
+function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, onUpdateContent, scriptsLoaded, onToggleReview }) {
   if (!note) return null;
   return (
     <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl animate-in fade-in duration-300">
@@ -1706,6 +1772,14 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
           <div className="h-6 w-px bg-slate-200 mx-1"></div>
           <button onClick={onExportPDF} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar PDF"><Download size={20} /></button>
           <button onClick={onExportMD} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar MD"><Share2 size={20} /></button>
+          
+          <button 
+            onClick={() => onToggleReview(note.id)} 
+            className={`p-2 transition-all rounded-full ${note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-400 hover:text-rose-500 hover:bg-slate-50'}`} 
+            title={note.isReview ? "Quitar de repaso" : "Añadir a repaso"}
+          >
+            <Heart size={20} fill={note.isReview ? "currentColor" : "none"} />
+          </button>
           {note.type === 'cornell' && (
             <button onClick={onFlashcard} className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-lg font-bold hover:bg-yellow-100 transition-colors border border-yellow-200">
               <Zap size={18} /> Estudiar
@@ -1730,6 +1804,11 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
               {note.deadline && (
                 <span className="text-sm font-bold text-indigo-600 flex items-center gap-1">
                   <CalendarIcon size={14} /> {new Date(note.deadline).toLocaleDateString()}
+                </span>
+              )}
+              {note.isReview && (
+                <span className="text-sm font-bold text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded-full">
+                  <Heart size={14} fill="currentColor" /> Repaso
                 </span>
               )}
               <span className="text-sm text-slate-400">
@@ -2133,6 +2212,178 @@ export function GalleryModal({ onClose, onSelect }) {
               ))}
             </div>
           )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// --- Vista de Sección de Repaso ---
+function ReviewPlaylistView({ notes, onBack, onViewNote, scriptsLoaded, categories, onToggleReview }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeNote = notes[activeIndex];
+
+  if (notes.length === 0) {
+    return (
+      <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl flex flex-col items-center justify-center p-10 animate-in fade-in duration-500">
+        <div className="p-8 bg-rose-50 rounded-full mb-6">
+          <Heart size={64} className="text-rose-400 opacity-50" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Sección de Repaso vacía</h2>
+        <p className="text-slate-500 text-center max-w-md mb-8">
+          Marca tus notas importantes con el corazón para tenerlas a mano en esta sección de acceso rápido.
+        </p>
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:-translate-y-1"
+        >
+          <ChevronLeft size={20} /> Volver al Inicio
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-5xl mx-auto min-h-screen bg-white shadow-2xl flex flex-col animate-in fade-in duration-300">
+      <header className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Heart size={20} className="text-rose-500" fill="currentColor" />
+              Sesión de Repaso
+            </h1>
+            <p className="text-xs text-slate-400 font-medium">{notes.length} notas seleccionadas</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setActiveIndex(Math.floor(Math.random() * notes.length))}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold border border-slate-200"
+          >
+            <Shuffle size={16} /> Aleatorio
+          </button>
+          <div className="h-6 w-px bg-slate-200 mx-1"></div>
+          <button 
+            onClick={() => {
+              if (activeIndex > 0) setActiveIndex(activeIndex - 1);
+              else setActiveIndex(notes.length - 1);
+            }}
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
+          >
+            <SkipBack size={20} />
+          </button>
+          <div className="text-xs font-mono font-bold text-slate-400 w-12 text-center">
+            {activeIndex + 1} / {notes.length}
+          </div>
+          <button 
+            onClick={() => {
+              if (activeIndex < notes.length - 1) setActiveIndex(activeIndex + 1);
+              else setActiveIndex(0);
+            }}
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
+          >
+            <SkipForward size={20} />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-grow overflow-hidden">
+        {/* Lista Lateral (Estilo App) */}
+        <aside className="w-72 border-r border-slate-50 flex flex-col bg-slate-50/50 hidden md:flex shrink-0">
+          <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-grow">
+            {notes.map((note, index) => (
+              <div
+                key={note.id}
+                onClick={() => setActiveIndex(index)}
+                className={`p-3 rounded-xl cursor-pointer transition-all border ${
+                  activeIndex === index 
+                    ? 'bg-white shadow-md border-rose-200 ring-1 ring-rose-100' 
+                    : 'bg-transparent border-transparent hover:bg-white/60 text-slate-500'
+                }`}
+              >
+                <h4 className={`text-xs font-bold truncate mb-1 ${activeIndex === index ? 'text-slate-900' : ''}`}>
+                  {note.title || 'Sin Título'}
+                </h4>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] opacity-60">
+                    {categories.find(c => c.id === note.categoryId)?.name || 'General'}
+                  </span>
+                  {activeIndex === index && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-4 border-t border-slate-100 bg-white">
+             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-rose-500 transition-all duration-500" 
+                  style={{ width: `${((activeIndex + 1) / notes.length) * 100}%` }}
+                ></div>
+             </div>
+          </div>
+        </aside>
+
+        {/* Contenido de la Nota */}
+        <main className="flex-grow overflow-y-auto bg-white p-6 sm:p-10 custom-scrollbar relative">
+          <div className="max-w-3xl mx-auto">
+            <div className="mb-10 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-full ${categories.find(c => c.id === activeNote?.categoryId)?.color || 'bg-slate-100'}`}>
+                    {categories.find(c => c.id === activeNote?.categoryId)?.name || 'General'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    Actualizado el {new Date(activeNote?.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => onToggleReview(activeNote.id)}
+                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                    title="Quitar de repaso"
+                  >
+                    <Heart size={20} fill="currentColor" />
+                  </button>
+                  <button 
+                    onClick={() => onViewNote(activeNote.id)}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full transition-colors"
+                  >
+                    <Edit3 size={20} />
+                  </button>
+                </div>
+              </div>
+              <h2 className="text-4xl font-bold text-slate-900 leading-tight">{activeNote?.title || 'Sin Título'}</h2>
+              <div className="h-1 w-20 bg-rose-100 rounded-full"></div>
+            </div>
+
+            <div className="prose prose-slate max-w-none">
+              {activeNote && (
+                <MarkdownRenderer content={activeNote.content} isReady={scriptsLoaded} renderMode={activeNote.renderMode} />
+              )}
+            </div>
+            
+            {/* Navegación inferior integrada */}
+            <div className="mt-20 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400">
+               <button 
+                 onClick={() => activeIndex > 0 && setActiveIndex(activeIndex - 1)}
+                 disabled={activeIndex === 0}
+                 className="flex items-center gap-2 hover:text-indigo-600 transition-colors disabled:opacity-20"
+               >
+                 <SkipBack size={16} /> <span className="text-sm font-bold uppercase tracking-wider">Anterior</span>
+               </button>
+               <button 
+                 onClick={() => activeIndex < notes.length - 1 && setActiveIndex(activeIndex + 1)}
+                 disabled={activeIndex === notes.length - 1}
+                 className="flex items-center gap-2 hover:text-indigo-600 transition-colors disabled:opacity-20 text-right"
+               >
+                  <span className="text-sm font-bold uppercase tracking-wider">Siguiente</span> <SkipForward size={16} />
+               </button>
+            </div>
+          </div>
         </main>
       </div>
     </div>
