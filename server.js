@@ -70,18 +70,27 @@ async function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS review_sections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS notes (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL DEFAULT '',
       category_id TEXT,
+      review_section_id TEXT,
       type TEXT DEFAULT 'standard',
       status TEXT DEFAULT 'todo',
       priority TEXT DEFAULT 'medium',
       deadline TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (review_section_id) REFERENCES review_sections(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS note_tags (
@@ -109,6 +118,18 @@ async function initDB() {
   if (!columns.includes('render_mode')) await db.run("ALTER TABLE notes ADD COLUMN render_mode TEXT DEFAULT 'markdown'");
   if (!columns.includes('notification_read')) await db.run("ALTER TABLE notes ADD COLUMN notification_read INTEGER DEFAULT 0");
   if (!columns.includes('is_review')) await db.run("ALTER TABLE notes ADD COLUMN is_review INTEGER DEFAULT 0");
+  if (!columns.includes('review_section_id')) await db.run("ALTER TABLE notes ADD COLUMN review_section_id TEXT REFERENCES review_sections(id) ON DELETE SET NULL");
+
+  // Crear sección de repaso por defecto si no existe
+  let defaultReviewSection = await db.get('SELECT id FROM review_sections LIMIT 1');
+  if (!defaultReviewSection) {
+    const id = 'rs-default';
+    await db.run('INSERT INTO review_sections (id, name, color) VALUES (?, ?, ?)', id, 'General', 'bg-rose-100 text-rose-800 border-rose-200');
+    defaultReviewSection = { id };
+
+    // Migrar notas marcadas como repaso anteriormente
+    await db.run('UPDATE notes SET review_section_id = ? WHERE is_review = 1 AND review_section_id IS NULL', id);
+  }
 
   // Insertar datos iniciales si la DB está vacía
   const catCount = await db.get('SELECT COUNT(*) as count FROM categories');
@@ -210,6 +231,50 @@ app.delete('/api/tags/:id', async (req, res) => {
   }
 });
 
+// ==================== RUTAS: REVIEW SECTIONS ====================
+
+app.get('/api/review-sections', async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM review_sections ORDER BY created_at ASC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/review-sections', async (req, res) => {
+  const { name, color } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido.' });
+  const id = `rs-${Date.now()}`;
+  try {
+    await db.run('INSERT INTO review_sections (id, name, color) VALUES (?, ?, ?)', id, name.trim(), color || 'bg-rose-100 text-rose-800 border-rose-200');
+    res.status(201).json({ id, name: name.trim(), color: color || 'bg-rose-100 text-rose-800 border-rose-200' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/review-sections/:id', async (req, res) => {
+  const { name, color } = req.body;
+  try {
+    const result = await db.run('UPDATE review_sections SET name = ?, color = ? WHERE id = ?', name?.trim(), color, req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Sección no encontrada.' });
+    res.json({ id: req.params.id, name: name.trim(), color });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/review-sections/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM review_sections WHERE id = ?', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ==================== RUTAS: NOTES ====================
 
 app.get('/api/notes', async (req, res) => {
@@ -245,23 +310,25 @@ app.get('/api/notes/:id', async (req, res) => {
 
 app.post('/api/notes', async (req, res) => {
   const { 
-    title, content, categoryId, type, status, priority, deadline,
+    title, content, categoryId, reviewSectionId, type, status, priority, deadline,
     startDate, endDate, isRecurring, rrule, allDay, objectiveType 
   } = req.body;
   const id = `note-${Date.now()}`;
   try {
     await db.run(`
-        id, title, content, category_id, type, status, priority, deadline, 
+      INSERT INTO notes (
+        id, title, content, category_id, review_section_id, type, status, priority, deadline, 
         start_date, end_date, is_recurring, rrule, all_day, objective_type, render_mode, notification_read, is_review, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `, [
-      id, title || '', content || '', categoryId || null, type || 'standard', 
+      id, title || '', content || '', categoryId || null, reviewSectionId || null, type || 'standard', 
       status || 'todo', priority || 'medium', deadline || null,
       startDate || null, endDate || null, isRecurring ? 1 : 0, rrule || null, 
       allDay ? 1 : 0, objectiveType || 'none', req.body.renderMode || 'markdown',
       req.body.notificationRead ? 1 : 0, req.body.isReview ? 1 : 0
     ]);
+
 
     const row = await db.get('SELECT * FROM notes WHERE id = ?', id);
     res.status(201).json(await mapNote(row));
@@ -272,23 +339,24 @@ app.post('/api/notes', async (req, res) => {
 
 app.put('/api/notes/:id', async (req, res) => {
   const { 
-    title, content, categoryId, type, status, priority, deadline,
+    title, content, categoryId, reviewSectionId, type, status, priority, deadline,
     startDate, endDate, isRecurring, rrule, allDay, objectiveType 
   } = req.body;
   try {
     const result = await db.run(`
       UPDATE notes
-      SET title = ?, content = ?, category_id = ?, type = ?, status = ?, priority = ?, deadline = ?,
+      SET title = ?, content = ?, category_id = ?, review_section_id = ?, type = ?, status = ?, priority = ?, deadline = ?,
           start_date = ?, end_date = ?, is_recurring = ?, rrule = ?, all_day = ?, objective_type = ?,
           render_mode = ?, notification_read = ?, is_review = ?, updated_at = datetime('now')
       WHERE id = ?
     `, [
-      title || '', content || '', categoryId || null, type || 'standard', 
+      title || '', content || '', categoryId || null, reviewSectionId || null, type || 'standard', 
       status || 'todo', priority || 'medium', deadline || null,
       startDate || null, endDate || null, isRecurring ? 1 : 0, rrule || null, 
       allDay ? 1 : 0, objectiveType || 'none', req.body.renderMode || 'markdown',
       req.body.notificationRead ? 1 : 0, req.body.isReview ? 1 : 0, req.params.id
     ]);
+
 
     if (result.changes === 0) return res.status(404).json({ error: 'Nota no encontrada.' });
 
@@ -401,7 +469,9 @@ async function mapNote(row) {
     renderMode: row.render_mode || 'markdown',
     notificationRead: row.notification_read === 1,
     isReview: row.is_review === 1,
+    reviewSectionId: row.review_section_id,
     updatedAt: row.updated_at,
+
     createdAt: row.created_at,
     tags: tags.map(t => ({ id: t.id, name: t.name, color: t.color }))
   };

@@ -79,7 +79,12 @@ const api = {
   updateNoteTags: (noteId, tagIds) => apiFetch(`/notes/${noteId}/tags`, { method: 'PUT', body: JSON.stringify({ tagIds }) }),
   patchNote: (id, data) => apiFetch(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }).catch(() => api.updateNote(id, data)), // Fallback a PUT si PATCH no existe
   markAsRead: (id) => apiFetch(`/notes/${id}`, { method: 'PUT', body: JSON.stringify({ notificationRead: true, status: 'completed' }) }),
+  getReviewSections: () => apiFetch('/review-sections'),
+  createReviewSection: (data) => apiFetch('/review-sections', { method: 'POST', body: JSON.stringify(data) }),
+  updateReviewSection: (id, data) => apiFetch(`/review-sections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteReviewSection: (id) => apiFetch(`/review-sections/${id}`, { method: 'DELETE' }),
 };
+
 
 const CATEGORY_COLORS = [
   'bg-blue-100 text-blue-800 border-blue-200',
@@ -183,7 +188,9 @@ function ErrorBanner({ message, onDismiss }) {
 export default function App() {
   const [notes, setNotes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [reviewSections, setReviewSections] = useState([]);
   const [tags, setTags] = useState([]);
+
   const [activeCategoryId, setActiveCategoryId] = useState('all');
   const [activeObjectiveFilter, setActiveObjectiveFilter] = useState('none');
   const [view, setView] = useState('home');
@@ -221,12 +228,14 @@ export default function App() {
   // Carga inicial
   useEffect(() => {
     setLoading(true);
-    Promise.all([api.getCategories(), api.getNotes(), api.getTags()])
-      .then(([cats, nts, tgs]) => { 
+    Promise.all([api.getCategories(), api.getNotes(), api.getTags(), api.getReviewSections()])
+      .then(([cats, nts, tgs, rvs]) => { 
         setCategories(cats); 
         setNotes(nts); 
         setTags(tgs);
+        setReviewSections(rvs);
       })
+
       .catch((err) => {
         console.error(err);
         showError('No se pudo conectar con el servidor. ¿Está corriendo el backend?');
@@ -345,11 +354,29 @@ export default function App() {
     }
   };
   
-  const handleToggleReview = async (noteId) => {
+  const handleToggleReview = async (noteId, sectionId = null) => {
     try {
       const note = notes.find(n => n.id === noteId);
       if (!note) return;
-      const updatedNote = { ...note, isReview: !note.isReview };
+      
+      let updatedNote;
+      if (sectionId) {
+        // Si ya está en esa sección, lo quitamos.
+        if (note.reviewSectionId === sectionId) {
+          updatedNote = { ...note, isReview: false, reviewSectionId: null };
+        } else {
+          updatedNote = { ...note, isReview: true, reviewSectionId: sectionId };
+        }
+      } else {
+        // Toggle básico
+        const newReviewState = !note.isReview;
+        const defaultSection = reviewSections[0]?.id || 'rs-default';
+        updatedNote = { 
+          ...note, 
+          isReview: newReviewState, 
+          reviewSectionId: newReviewState ? (note.reviewSectionId || defaultSection) : null 
+        };
+      }
       
       // Actualización optimista
       setNotes(ns => ns.map(n => n.id === noteId ? updatedNote : n));
@@ -359,6 +386,7 @@ export default function App() {
       showError(`Error al cambiar estado de repaso: ${err.message}`);
     }
   };
+
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -708,8 +736,10 @@ export default function App() {
           onMarkAllAsRead={handleMarkAllAsRead}
           showReviewOnly={showReviewOnly}
           setShowReviewOnly={setShowReviewOnly}
+          reviewSections={reviewSections}
           onToggleReview={handleToggleReview}
         />
+
       )}
       {view === 'editor' && (
         <EditorView
@@ -717,6 +747,7 @@ export default function App() {
           note={activeNote}
           categories={categories}
           tags={tags}
+          reviewSections={reviewSections}
           defaultCategoryId={activeCategoryId}
           onSave={handleSaveNote}
           onCancel={() => setView(activeNoteId ? 'viewer' : 'home')}
@@ -726,7 +757,13 @@ export default function App() {
             setTags(ts => [...ts, newTag]);
             return newTag;
           }}
+          onAddReviewSection={async (name) => {
+            const newSection = await api.createReviewSection({ name });
+            setReviewSections(prev => [...prev, newSection]);
+            return newSection;
+          }}
         />
+
       )}
       {view === 'viewer' && (
         <ViewerView
@@ -748,18 +785,27 @@ export default function App() {
             }
           }}
           scriptsLoaded={scriptsLoaded}
+          reviewSections={reviewSections}
           onToggleReview={handleToggleReview}
         />
+
       )}
       {view === 'review' && (
         <ReviewPlaylistView
-          notes={notes.filter(n => n.isReview)}
+          notes={notes}
           onBack={() => setView('home')}
-          onViewNote={(id) => { setActiveNoteId(id); setView('viewer'); }}
+          onViewNote={handleViewNote}
           scriptsLoaded={scriptsLoaded}
           categories={categories}
+          reviewSections={reviewSections}
           onToggleReview={handleToggleReview}
+          onCreateReviewSection={async (name) => {
+            const newSection = await api.createReviewSection({ name });
+            setReviewSections(prev => [...prev, newSection]);
+            return newSection;
+          }}
         />
+
       )}
       {view === 'calendar' && (
         <CalendarView
@@ -780,12 +826,13 @@ export default function App() {
 }
 
 function HomeView({ 
-  notes, categories, activeCategoryId, setActiveCategoryId, 
+  notes, categories, reviewSections, activeCategoryId, setActiveCategoryId, 
   activeObjectiveFilter, setActiveObjectiveFilter, searchTerm, setSearchTerm, setView,
   onCreateNote, onViewNote, onAddCategory, onUpdateCategory, onDeleteCategory,
   notifications, onMarkAsRead, onMarkAllAsRead,
   showReviewOnly, setShowReviewOnly, onToggleReview
 }) {
+
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [addingToParentId, setAddingToParentId] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -794,16 +841,21 @@ function HomeView({
   const [editingName, setEditingName] = useState('');
   const [saving, setSaving] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [activeReviewNoteId, setActiveReviewNoteId] = useState(null);
   const notificationRef = useRef(null);
+  const reviewMenuRef = useRef(null);
+
 
   // Cerrar dropdowns al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (notificationRef.current && !notificationRef.current.contains(e.target)) setShowNotifications(false);
+      if (reviewMenuRef.current && !reviewMenuRef.current.contains(e.target)) setActiveReviewNoteId(null);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
 
   const handleSaveCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -1165,14 +1217,62 @@ function HomeView({
                     <h3 className="font-semibold text-lg text-slate-800 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors">
                       {note.title || 'Sin Título'}
                     </h3>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onToggleReview(note.id); }}
-                      className={`p-1.5 rounded-full transition-all ${
-                        note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-300 hover:text-rose-400 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Heart size={18} fill={note.isReview ? "currentColor" : "none"} />
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setActiveReviewNoteId(activeReviewNoteId === note.id ? null : note.id); 
+                        }}
+                        className={`p-1.5 rounded-full transition-all ${
+                          note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-300 hover:text-rose-400 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Heart size={18} fill={note.isReview ? "currentColor" : "none"} />
+                      </button>
+
+                      {activeReviewNoteId === note.id && (
+                        <div 
+                          ref={reviewMenuRef}
+                          className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-2 animate-in fade-in zoom-in-95 duration-100"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-3 py-1 mb-1 border-b border-slate-50">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Añadir a repaso</span>
+                          </div>
+                          {reviewSections.map(section => (
+                            <button
+                              key={section.id}
+                              onClick={() => {
+                                onToggleReview(note.id, section.id);
+                                setActiveReviewNoteId(null);
+                              }}
+                              className={`w-full text-left px-3 py-2 hover:bg-slate-50 text-xs flex items-center justify-between group ${note.reviewSectionId === section.id ? 'text-rose-600 font-bold' : 'text-slate-600'}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${section.color.split(' ')[0]}`}></div>
+                                {section.name}
+                              </div>
+                              {note.reviewSectionId === section.id && <Check size={12} />}
+                            </button>
+                          ))}
+                          {note.isReview && (
+                            <>
+                              <div className="border-t border-slate-50 my-1"></div>
+                              <button
+                                onClick={() => {
+                                  onToggleReview(note.id, null);
+                                  setActiveReviewNoteId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-red-50 text-[10px] uppercase font-bold text-red-500"
+                              >
+                                Quitar de repaso
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                   <p className="text-slate-500 text-sm flex-grow line-clamp-3 leading-relaxed">
                     {cleanContent || 'No hay contenido adicional.'}
@@ -1209,7 +1309,8 @@ function HomeView({
 }
 
 // --- Vista de Edición ---
-function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, onAddTag, defaultCategoryId }) {
+function EditorView({ note, categories, reviewSections, tags, onSave, onCancel, scriptsLoaded, onAddTag, onAddReviewSection, defaultCategoryId }) {
+
   const rootCategories = categories.filter(c => !c.parentId);
 
   // Determinar valores iniciales
@@ -1255,13 +1356,17 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
   const [objectiveType, setObjectiveType] = useState(note?.objectiveType || 'none');
   const [renderMode, setRenderMode] = useState(note?.renderMode || 'visual');
   const [isReview, setIsReview] = useState(note?.isReview || false);
+  const [reviewSectionId, setReviewSectionId] = useState(note?.reviewSectionId || 'none');
   const [selectedTagIds, setSelectedTagIds] = useState(note?.tags?.map(t => t.id) || []);
   const [activeTab, setActiveTab] = useState('write');
   const [saving, setSaving] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [newReviewSectionName, setNewReviewSectionName] = useState('');
+  const [showReviewSectionMenu, setShowReviewSectionMenu] = useState(false);
   const [showTableWizard, setShowTableWizard] = useState(false);
+
 
 
   // Subcategorías disponibles para el padre seleccionado
@@ -1290,9 +1395,11 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
       rrule,
       objectiveType,
       renderMode,
-      isReview,
+      isReview: reviewSectionId !== 'none',
+      reviewSectionId: reviewSectionId !== 'none' ? reviewSectionId : null,
       tagIds: selectedTagIds
     };
+
     
     await onSave(noteData);
     setSaving(false);
@@ -1523,15 +1630,52 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
                       }`}
                     >HTML Puro</button>
                   </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                    <span className="text-sm text-slate-600 font-medium">Marcada para Repaso</span>
-                    <button 
-                      onClick={() => setIsReview(!isReview)}
-                      className={`p-2 rounded-lg border transition-all ${isReview ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-white border-slate-200 text-slate-400 hover:text-rose-400'}`}
-                    >
-                      <Heart size={18} fill={isReview ? "currentColor" : "none"} />
-                    </button>
+                  <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <span className="text-sm text-slate-600 font-medium">Sección de Repaso</span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={reviewSectionId}
+                        onChange={(e) => setReviewSectionId(e.target.value)}
+                        className={`flex-grow text-xs font-bold rounded-lg p-2 outline-none border transition-all ${
+                          reviewSectionId !== 'none' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <option value="none">No incluir en repaso</option>
+                        {reviewSections.map(rs => (
+                          <option key={rs.id} value={rs.id}>{rs.name}</option>
+                        ))}
+                      </select>
+                      <div className="relative">
+                        <button 
+                          onClick={() => setShowReviewSectionMenu(!showReviewSectionMenu)}
+                          className="p-2 text-slate-400 hover:text-rose-500 border border-dashed border-slate-200 rounded-lg"
+                          title="Nueva sección de repaso"
+                        >
+                          <Plus size={16} />
+                        </button>
+                        {showReviewSectionMenu && (
+                          <div className="absolute bottom-full right-0 mb-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl z-30 p-2">
+                             <input 
+                              className="text-xs p-1.5 border rounded-lg w-full outline-none"
+                              placeholder="Nueva sección..."
+                              autoFocus
+                              value={newReviewSectionName}
+                              onChange={e => setNewReviewSectionName(e.target.value)}
+                              onKeyDown={async e => {
+                                if (e.key === 'Enter' && newReviewSectionName.trim()) {
+                                  const newSection = await onAddReviewSection(newReviewSectionName.trim());
+                                  setReviewSectionId(newSection.id);
+                                  setNewReviewSectionName('');
+                                  setShowReviewSectionMenu(false);
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
                 </div>
               </div>
             </div>
@@ -1755,8 +1899,22 @@ function EditorView({ note, categories, tags, onSave, onCancel, scriptsLoaded, o
 }
 
 // --- Vista de Visualización ---
-function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, onUpdateContent, scriptsLoaded, onToggleReview }) {
+function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onExportPDF, onExportMD, onUpdateContent, scriptsLoaded, reviewSections, onToggleReview }) {
+  const [showReviewMenu, setShowReviewMenu] = useState(false);
+  const reviewMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (reviewMenuRef.current && !reviewMenuRef.current.contains(e.target)) setShowReviewMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   if (!note) return null;
+  
+  const currentSection = reviewSections.find(s => s.id === note.reviewSectionId);
+
   return (
     <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl animate-in fade-in duration-300">
       <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
@@ -1773,13 +1931,57 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
           <button onClick={onExportPDF} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar PDF"><Download size={20} /></button>
           <button onClick={onExportMD} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Exportar MD"><Share2 size={20} /></button>
           
-          <button 
-            onClick={() => onToggleReview(note.id)} 
-            className={`p-2 transition-all rounded-full ${note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-400 hover:text-rose-500 hover:bg-slate-50'}`} 
-            title={note.isReview ? "Quitar de repaso" : "Añadir a repaso"}
-          >
-            <Heart size={20} fill={note.isReview ? "currentColor" : "none"} />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowReviewMenu(!showReviewMenu)}
+              className={`p-2 transition-all rounded-full ${note.isReview ? 'text-rose-500 bg-rose-50' : 'text-slate-400 hover:text-rose-500 hover:bg-slate-50'}`} 
+              title={note.isReview ? `En repaso: ${currentSection?.name || 'General'}` : "Añadir a repaso"}
+            >
+              <Heart size={20} fill={note.isReview ? "currentColor" : "none"} />
+            </button>
+
+            {showReviewMenu && (
+              <div 
+                ref={reviewMenuRef}
+                className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-2 animate-in fade-in zoom-in-95 duration-100"
+              >
+                <div className="px-3 py-1 mb-1 border-b border-slate-50">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Añadir a repaso</span>
+                </div>
+                {reviewSections.map(section => (
+                  <button
+                    key={section.id}
+                    onClick={() => {
+                      onToggleReview(note.id, section.id);
+                      setShowReviewMenu(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 text-xs flex items-center justify-between group ${note.reviewSectionId === section.id ? 'text-rose-600 font-bold' : 'text-slate-600'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${section.color.split(' ')[0]}`}></div>
+                      {section.name}
+                    </div>
+                    {note.reviewSectionId === section.id && <Check size={12} />}
+                  </button>
+                ))}
+                {note.isReview && (
+                  <>
+                    <div className="border-t border-slate-50 my-1"></div>
+                    <button
+                      onClick={() => {
+                        onToggleReview(note.id, null);
+                        setShowReviewMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-red-50 text-[10px] uppercase font-bold text-red-500"
+                    >
+                      Quitar de repaso
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {note.type === 'cornell' && (
             <button onClick={onFlashcard} className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-lg font-bold hover:bg-yellow-100 transition-colors border border-yellow-200">
               <Zap size={18} /> Estudiar
@@ -1808,9 +2010,10 @@ function ViewerView({ note, category, onEdit, onBack, onDelete, onFlashcard, onE
               )}
               {note.isReview && (
                 <span className="text-sm font-bold text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded-full">
-                  <Heart size={14} fill="currentColor" /> Repaso
+                  <Heart size={14} fill="currentColor" /> Repaso: {currentSection?.name || 'General'}
                 </span>
               )}
+
               <span className="text-sm text-slate-400">
                 Creado: {new Date(note.createdAt).toLocaleDateString()}
               </span>
@@ -2206,11 +2409,13 @@ export function GalleryModal({ onClose, onSelect }) {
                 >
                   <img src={getAssetUrl(img.url)} alt={img.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+
                     <span className="text-white text-[10px] font-bold uppercase tracking-wider">Insertar</span>
                   </div>
                 </div>
               ))}
             </div>
+
           )}
         </main>
       </div>
@@ -2219,172 +2424,288 @@ export function GalleryModal({ onClose, onSelect }) {
 }
 
 // --- Vista de Sección de Repaso ---
-function ReviewPlaylistView({ notes, onBack, onViewNote, scriptsLoaded, categories, onToggleReview }) {
+function ReviewPlaylistView({ notes, onBack, onViewNote, scriptsLoaded, categories, reviewSections, onToggleReview, onCreateReviewSection }) {
+  const [activeSectionId, setActiveSectionId] = useState(reviewSections[0]?.id || 'none');
   const [activeIndex, setActiveIndex] = useState(0);
-  const activeNote = notes[activeIndex];
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
 
-  if (notes.length === 0) {
+  // Sincronizar sección activa cuando cargan por primera vez
+  useEffect(() => {
+    if (activeSectionId === 'none' && reviewSections.length > 0) {
+      setActiveSectionId(reviewSections[0].id);
+    }
+  }, [reviewSections, activeSectionId]);
+
+  // Filtrar notas por la sección activa
+  const sectionNotes = notes.filter(n => n.reviewSectionId === activeSectionId);
+  const activeNote = sectionNotes[activeIndex];
+
+  // Si la sección activa no tiene notas, y hay otras secciones con notas, tal vez queramos cambiar?
+  // O simplemente mostrar el estado vacío.
+
+  const handleAddSection = async () => {
+    if (!newSectionName.trim()) return;
+    const newSection = await onCreateReviewSection(newSectionName.trim());
+    setActiveSectionId(newSection.id);
+    setNewSectionName('');
+    setIsAddingSection(false);
+  };
+
+  if (reviewSections.length === 0) {
     return (
       <div className="w-full max-w-4xl mx-auto min-h-screen bg-white shadow-xl flex flex-col items-center justify-center p-10 animate-in fade-in duration-500">
         <div className="p-8 bg-rose-50 rounded-full mb-6">
           <Heart size={64} className="text-rose-400 opacity-50" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Sección de Repaso vacía</h2>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">No hay secciones de repaso</h2>
         <p className="text-slate-500 text-center max-w-md mb-8">
-          Marca tus notas importantes con el corazón para tenerlas a mano en esta sección de acceso rápido.
+          Crea tu primera sección de repaso para empezar a organizar tus estudios.
         </p>
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:-translate-y-1"
-        >
-          <ChevronLeft size={20} /> Volver al Inicio
-        </button>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <input 
+            type="text"
+            placeholder="Nombre de la sección..."
+            className="px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20"
+            value={newSectionName}
+            onChange={e => setNewSectionName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddSection()}
+          />
+          <button
+            onClick={handleAddSection}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg"
+          >
+            <Plus size={20} /> Crear Sección
+          </button>
+          <button onClick={onBack} className="text-slate-400 text-sm font-medium hover:text-slate-600">Volver al inicio</button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto min-h-screen bg-white shadow-2xl flex flex-col animate-in fade-in duration-300">
-      <header className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30">
+    <div className="w-full max-w-6xl mx-auto min-h-screen bg-white shadow-2xl flex flex-col animate-in fade-in duration-300">
+      <header className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-800 rounded-full hover:bg-slate-50 transition-colors">
             <ChevronLeft size={24} />
           </button>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Heart size={20} className="text-rose-500" fill="currentColor" />
-              Sesión de Repaso
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">{notes.length} notas seleccionadas</p>
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
+                <ListMusic size={24} />
+             </div>
+             <div>
+                <h1 className="text-lg font-bold text-slate-900 leading-tight">Módulo de Repaso</h1>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{reviewSections.length} secciones disponibles</p>
+             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setActiveIndex(Math.floor(Math.random() * notes.length))}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold border border-slate-200"
-          >
-            <Shuffle size={16} /> Aleatorio
-          </button>
-          <div className="h-6 w-px bg-slate-200 mx-1"></div>
-          <button 
-            onClick={() => {
-              if (activeIndex > 0) setActiveIndex(activeIndex - 1);
-              else setActiveIndex(notes.length - 1);
-            }}
-            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
-          >
-            <SkipBack size={20} />
-          </button>
-          <div className="text-xs font-mono font-bold text-slate-400 w-12 text-center">
-            {activeIndex + 1} / {notes.length}
+        {sectionNotes.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setActiveIndex(Math.floor(Math.random() * sectionNotes.length))}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-all text-xs font-bold border border-slate-200"
+            >
+              <Shuffle size={14} /> Aleatorio
+            </button>
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+            <button 
+              onClick={() => {
+                if (activeIndex > 0) setActiveIndex(activeIndex - 1);
+                else setActiveIndex(sectionNotes.length - 1);
+              }}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
+            >
+              <SkipBack size={20} />
+            </button>
+            <div className="text-xs font-mono font-bold text-slate-400 w-12 text-center">
+              {activeIndex + 1} / {sectionNotes.length}
+            </div>
+            <button 
+              onClick={() => {
+                if (activeIndex < sectionNotes.length - 1) setActiveIndex(activeIndex + 1);
+                else setActiveIndex(0);
+              }}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
+            >
+              <SkipForward size={20} />
+            </button>
           </div>
-          <button 
-            onClick={() => {
-              if (activeIndex < notes.length - 1) setActiveIndex(activeIndex + 1);
-              else setActiveIndex(0);
-            }}
-            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg"
-          >
-            <SkipForward size={20} />
-          </button>
-        </div>
+        )}
       </header>
 
-      <div className="flex flex-grow overflow-hidden">
-        {/* Lista Lateral (Estilo App) */}
-        <aside className="w-72 border-r border-slate-50 flex flex-col bg-slate-50/50 hidden md:flex shrink-0">
-          <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-grow">
-            {notes.map((note, index) => (
-              <div
-                key={note.id}
-                onClick={() => setActiveIndex(index)}
-                className={`p-3 rounded-xl cursor-pointer transition-all border ${
-                  activeIndex === index 
-                    ? 'bg-white shadow-md border-rose-200 ring-1 ring-rose-100' 
-                    : 'bg-transparent border-transparent hover:bg-white/60 text-slate-500'
-                }`}
-              >
-                <h4 className={`text-xs font-bold truncate mb-1 ${activeIndex === index ? 'text-slate-900' : ''}`}>
-                  {note.title || 'Sin Título'}
-                </h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] opacity-60">
-                    {categories.find(c => c.id === note.categoryId)?.name || 'General'}
-                  </span>
-                  {activeIndex === index && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>}
+      {/* Selector de Secciones (Tabs) */}
+      <div className="px-6 py-2 border-b border-slate-50 flex items-center gap-2 bg-slate-50/30 overflow-x-auto no-scrollbar">
+         {reviewSections.map(rs => (
+           <button
+            key={rs.id}
+            onClick={() => { setActiveSectionId(rs.id); setActiveIndex(0); }}
+            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+              activeSectionId === rs.id 
+                ? `${rs.color} shadow-sm ring-2 ring-indigo-500/10` 
+                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+            }`}
+           >
+             {rs.name}
+             <span className="ml-2 opacity-50">{notes.filter(n => n.reviewSectionId === rs.id).length}</span>
+           </button>
+         ))}
+         {isAddingSection ? (
+            <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-xl px-2 py-1 shadow-sm shrink-0">
+              <input 
+                autoFocus
+                className="text-xs outline-none w-24 bg-transparent font-medium"
+                placeholder="Nueva lista..."
+                value={newSectionName}
+                onChange={e => setNewSectionName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddSection()}
+              />
+              <button onClick={handleAddSection} className="p-1 text-indigo-600"><Plus size={14} /></button>
+            </div>
+         ) : (
+            <button 
+              onClick={() => setIsAddingSection(true)}
+              className="px-3 py-2 text-slate-400 hover:text-indigo-600 border border-dashed border-slate-200 rounded-xl hover:bg-white transition-all shrink-0"
+            >
+              <Plus size={16} />
+            </button>
+         )}
+      </div>
+
+      <div className="flex flex-grow overflow-hidden bg-slate-50/30">
+        {sectionNotes.length === 0 ? (
+          <div className="flex-grow flex flex-col items-center justify-center p-20 text-slate-400 animate-in fade-in duration-500">
+            <Heart size={48} className="mb-4 opacity-20 text-rose-500" />
+            <p className="text-lg font-medium text-slate-600">Esta sección está vacía</p>
+            <p className="text-sm mt-1 max-w-xs text-center">Añade notas a "{reviewSections.find(s => s.id === activeSectionId)?.name}" desde la pantalla principal para verlas aquí.</p>
+          </div>
+        ) : (
+          <>
+            {/* Lista Lateral */}
+            <aside className="w-80 border-r border-slate-100 flex flex-col bg-white hidden lg:flex shrink-0">
+              <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-grow">
+                {sectionNotes.map((note, index) => (
+                  <div
+                    key={note.id}
+                    onClick={() => setActiveIndex(index)}
+                    className={`p-4 rounded-2xl cursor-pointer transition-all border-2 ${
+                      activeIndex === index 
+                        ? 'bg-rose-50/30 border-rose-200' 
+                        : 'bg-transparent border-transparent hover:bg-slate-50 text-slate-500'
+                    }`}
+                  >
+                    <h4 className={`text-sm font-bold line-clamp-2 leading-snug mb-2 ${activeIndex === index ? 'text-slate-900' : ''}`}>
+                      {note.title || 'Sin Título'}
+                    </h4>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">
+                        {categories.find(c => c.id === note.categoryId)?.name || 'General'}
+                      </span>
+                      {activeIndex === index && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-white">
+                <div className="flex justify-between items-center mb-2">
+                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progreso</span>
+                   <span className="text-[10px] font-bold text-indigo-600">{Math.round(((activeIndex + 1) / sectionNotes.length) * 100)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-indigo-500 transition-all duration-500" 
+                      style={{ width: `${((activeIndex + 1) / sectionNotes.length) * 100}%` }}
+                    ></div>
                 </div>
               </div>
-            ))}
-          </div>
-          <div className="p-4 border-t border-slate-100 bg-white">
-             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-rose-500 transition-all duration-500" 
-                  style={{ width: `${((activeIndex + 1) / notes.length) * 100}%` }}
-                ></div>
-             </div>
-          </div>
-        </aside>
+            </aside>
 
-        {/* Contenido de la Nota */}
-        <main className="flex-grow overflow-y-auto bg-white p-6 sm:p-10 custom-scrollbar relative">
-          <div className="max-w-3xl mx-auto">
-            <div className="mb-10 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-full ${categories.find(c => c.id === activeNote?.categoryId)?.color || 'bg-slate-100'}`}>
-                    {categories.find(c => c.id === activeNote?.categoryId)?.name || 'General'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    Actualizado el {new Date(activeNote?.updatedAt).toLocaleDateString()}
-                  </span>
+            {/* Contenido de la Nota */}
+            <main className="flex-grow overflow-y-auto bg-white custom-scrollbar relative">
+              <div className="max-w-4xl mx-auto p-8 sm:p-12">
+                <div className="mb-12 flex flex-col gap-6">
+                  <div className="flex items-center justify-between pb-6 border-b border-slate-100">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] uppercase font-extrabold px-3 py-1 rounded-full ${categories.find(c => c.id === activeNote?.categoryId)?.color || 'bg-slate-100'}`}>
+                          {categories.find(c => c.id === activeNote?.categoryId)?.name || 'General'}
+                        </span>
+                        {activeNote?.tags?.slice(0, 2).map(tag => (
+                          <span key={tag.id} className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">#{tag.name}</span>
+                        ))}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                        Actualizado el {new Date(activeNote?.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => onToggleReview(activeNote.id, activeSectionId)}
+                        className="p-3 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-2xl transition-all shadow-sm group"
+                        title="Quitar de esta sección"
+                      >
+                        <Heart size={20} fill="currentColor" className="group-active:scale-90 transition-transform" />
+                      </button>
+                      <button 
+                        onClick={() => onViewNote(activeNote.id)}
+                        className="p-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-2xl transition-all shadow-sm"
+                        title="Ver nota completa"
+                      >
+                        <Edit3 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                  <h2 className="text-4xl font-black text-slate-900 leading-tight tracking-tight">{activeNote?.title || 'Sin Título'}</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => onToggleReview(activeNote.id)}
-                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
-                    title="Quitar de repaso"
-                  >
-                    <Heart size={20} fill="currentColor" />
-                  </button>
-                  <button 
-                    onClick={() => onViewNote(activeNote.id)}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full transition-colors"
-                  >
-                    <Edit3 size={20} />
-                  </button>
+
+                <div className="prose-container">
+                  {activeNote && (
+                    <MarkdownRenderer content={activeNote.content} isReady={scriptsLoaded} renderMode={activeNote.renderMode} />
+                  )}
+                </div>
+                
+                {/* Navegación inferior integrada */}
+                <div className="mt-24 pt-12 border-t border-slate-100 flex items-center justify-between text-slate-400 pb-12">
+                   <button 
+                     onClick={() => {
+                        setActiveIndex(prev => prev > 0 ? prev - 1 : sectionNotes.length - 1);
+                        document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+                     }}
+                     className="flex items-center gap-3 hover:text-indigo-600 transition-all font-bold uppercase tracking-widest text-xs group"
+                   >
+                     <div className="p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
+                        <SkipBack size={18} /> 
+                     </div>
+                     Anterior
+                   </button>
+                   
+                   <div className="flex flex-col items-center gap-1">
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{reviewSections.find(s => s.id === activeSectionId)?.name}</span>
+                      <div className="flex gap-1.5">
+                         {sectionNotes.map((_, i) => (
+                           <div key={i} className={`h-1 rounded-full transition-all duration-300 ${i === activeIndex ? 'w-6 bg-indigo-500' : 'w-1.5 bg-slate-100'}`}></div>
+                         ))}
+                      </div>
+                   </div>
+
+                   <button 
+                     onClick={() => {
+                        setActiveIndex(prev => prev < sectionNotes.length - 1 ? prev + 1 : 0);
+                        document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+                     }}
+                     className="flex items-center gap-3 hover:text-indigo-600 transition-all font-bold uppercase tracking-widest text-xs group"
+                   >
+                     Siguiente
+                     <div className="p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
+                        <SkipForward size={18} />
+                     </div>
+                   </button>
                 </div>
               </div>
-              <h2 className="text-4xl font-bold text-slate-900 leading-tight">{activeNote?.title || 'Sin Título'}</h2>
-              <div className="h-1 w-20 bg-rose-100 rounded-full"></div>
-            </div>
-
-            <div className="prose prose-slate max-w-none">
-              {activeNote && (
-                <MarkdownRenderer content={activeNote.content} isReady={scriptsLoaded} renderMode={activeNote.renderMode} />
-              )}
-            </div>
-            
-            {/* Navegación inferior integrada */}
-            <div className="mt-20 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400">
-               <button 
-                 onClick={() => activeIndex > 0 && setActiveIndex(activeIndex - 1)}
-                 disabled={activeIndex === 0}
-                 className="flex items-center gap-2 hover:text-indigo-600 transition-colors disabled:opacity-20"
-               >
-                 <SkipBack size={16} /> <span className="text-sm font-bold uppercase tracking-wider">Anterior</span>
-               </button>
-               <button 
-                 onClick={() => activeIndex < notes.length - 1 && setActiveIndex(activeIndex + 1)}
-                 disabled={activeIndex === notes.length - 1}
-                 className="flex items-center gap-2 hover:text-indigo-600 transition-colors disabled:opacity-20 text-right"
-               >
-                  <span className="text-sm font-bold uppercase tracking-wider">Siguiente</span> <SkipForward size={16} />
-               </button>
-            </div>
-          </div>
-        </main>
+            </main>
+          </>
+        )}
       </div>
     </div>
   );
